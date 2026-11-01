@@ -231,7 +231,7 @@ function viewCal(){
   for(i=0;i<=ROOMS.length;i++)leg+='<div style="background:rgba(180,82,31,'+(0.04+0.32*(i/ROOMS.length)).toFixed(2)+')">'+i+'</div>';
   function rows(list){return list.map(function(r){
     var b=find(r.k,app.sel),bk=b?backInfo(b.phone,b.from,b.id):null;
-    return '<div class="row"><span class="bar" style="background:'+rc(r)+'"></span><div class="no"><b>'+r.no+'</b><span>'+r.cap+' 人房</span></div>'+
+    return '<div class="row"><span class="bar" style="background:'+rc(r)+'"></span><div class="no" style="width:'+(r.label?'92px':'64px')+'"><b>'+(r.label?r.label+' ':'')+r.no+'</b><span>'+r.cap+' 人房</span></div>'+
       '<div class="who"><div><span>'+(b?esc(b.who||'（已清除）')+' · '+b.n+' 人':'空房')+'</span>'+(bk?'<span class="back back-pill">回流</span>':'')+'</div><div class="muted" style="font-size:14px">'+(b?md(b.from)+' – '+md(b.to):'')+'</div></div>'+
       (b?'<button class="pill '+(b.checked?'done':'dark')+'" data-act="checkin" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>':'<button class="pill ghost" data-act="new" data-k="'+r.k+'">＋ 新增</button>')+'</div>';
   }).join('')}
