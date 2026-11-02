@@ -35,6 +35,35 @@ function ph_(v) {
   return s && s.charAt(0) !== '0' ? '0' + s : s;
 }
 
+var HIST_HEAD = ['時間', '動作', 'id', '房間', '姓名', '電話', '入住', '退房', '房價', '訂金', '改了什麼'];
+var FIELDS_ = [['room', 1], ['who', 2], ['phone', 3], ['n', 4], ['from', 5], ['to', 6], ['price', 7], ['deposit', 8], ['src', 9], ['note', 10], ['checked', 11], ['paid', 14]];
+function cs2_() { return sheet_('已取消', BOOK_HEAD); }
+function hist_() { return sheet_('歷程', HIST_HEAD); }
+function pad_(v) { v = v.slice(); while (v.length < BOOK_HEAD.length) v.push(''); return v; }
+function write_(sh, head, rows) {
+  var last = sh.getLastRow();
+  if (last > 1) sh.getRange(2, 1, last - 1, sh.getMaxColumns()).clearContent();
+  if (!rows.length) return;
+  if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
+  var rg = sh.getRange(2, 1, rows.length, head.length);
+  rg.setNumberFormat('@'); rg.setValues(rows);
+}
+function diff_(a, b) {
+  a = pad_(a); b = pad_(b);
+  var names = { room: '房間', who: '姓名', phone: '電話', n: '人數', from: '入住', to: '退房', price: '房價', deposit: '訂金', src: '管道', note: '備註', checked: '登記', paid: '尾款' };
+  var out = [];
+  FIELDS_.forEach(function (f) {
+    var x = f[0] === 'from' || f[0] === 'to' ? d_(a[f[1]]) : String(a[f[1]]);
+    var y = f[0] === 'from' || f[0] === 'to' ? d_(b[f[1]]) : String(b[f[1]]);
+    if (f[0] === 'phone') { x = ph_(x); y = ph_(y); }
+    if (x !== y) out.push(['who', 'phone', 'note'].indexOf(f[0]) >= 0 ? names[f[0]] + '已更改' : names[f[0]] + '：' + x + ' → ' + y);
+  });
+  return out.join('；');
+}
+function log_(now, act, v, ch) {
+  return [now, act, String(v[0]), v[1], v[2], ph_(v[3]), d_(v[5]), d_(v[6]), String(v[7]), String(v[8]), ch];
+}
+
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -67,38 +96,54 @@ function doPost(e) {
       for (var q = fd.length - 1; q >= 1; q--) {
         if (fg.indexOf(ph_(fd[q][6])) >= 0) cs.deleteRow(q + 1);
       }
+      var hs0 = hist_(), hd = hs0.getDataRange().getValues();
+      for (var q2 = hd.length - 1; q2 >= 1; q2--) {
+        if (fg.indexOf(ph_(hd[q2][5])) >= 0) hs0.deleteRow(q2 + 1);
+      }
     }
 
     // ---- 訂單：以 id 合併，updatedAt 較新的蓋過舊的 ----
-    var data = bs.getDataRange().getValues();
-    var index = {}; // id -> 列號(1 起算)
-    var current = {}; // id -> updatedAt
-    for (var i = 1; i < data.length; i++) {
-      index[String(data[i][0])] = i + 1;
-      current[String(data[i][0])] = Number(data[i][13]) || 0;
-    }
+    // 「訂單」只放目前有效的訂單（現況）；取消的搬到「已取消」；每次新增／修改／取消都記在「歷程」
+    var live = {}, gone = {};
+    bs.getDataRange().getValues().slice(1).forEach(function (v) { if (v[0] !== '') (v[12] === '1' || v[12] === 1 ? gone : live)[String(v[0])] = v; });
+    cs2_().getDataRange().getValues().slice(1).forEach(function (v) { if (v[0] !== '') gone[String(v[0])] = v; });
+    var logs = [];
+    var now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
     (body.rows || []).forEach(function (r) {
-      var id = String(r.id);
-      if (id in index && (Number(r.updatedAt) || 0) < current[id]) return; // 別人較新
-      var old = id in index ? data[index[id] - 1] : null;
-      var rec = r.deleted && old ? old.slice() : toRow_(r);
-      while (rec.length < BOOK_HEAD.length) rec.push('');
+      var id = String(r.id), ts = Number(r.updatedAt) || 0;
+      var old = live[id] || gone[id] || null;
+      if (old && ts < (Number(old[13]) || 0)) return; // 別人較新
       if (r.deleted) {
-        rec[12] = '1';
-        rec[13] = String(r.updatedAt || Date.now());
+        if (live[id]) {
+          var g = live[id].slice(); while (g.length < BOOK_HEAD.length) g.push('');
+          g[12] = '1'; g[13] = String(ts || Date.now());
+          gone[id] = g; delete live[id];
+          logs.push(log_(now, '取消', g, ''));
+        } else if (gone[id]) { gone[id][13] = String(ts || Date.now()); }
+        return;
       }
-      if (id in index) {
-        var rg = bs.getRange(index[id], 1, 1, BOOK_HEAD.length);
-        rg.setNumberFormat('@');
-        rg.setValues([rec]);
-        data[index[id] - 1] = rec;
+      var rec = toRow_(r);
+      if (live[id]) {
+        var ch = diff_(live[id], rec);
+        if (ch) logs.push(log_(now, '修改', rec, ch));
+      } else if (gone[id]) {
+        logs.push(log_(now, '復原', rec, ''));
       } else {
-        put_(bs, rec);
-        data.push(rec);
-        index[id] = data.length;
+        logs.push(log_(now, '新增', rec, ''));
       }
-      current[id] = Number(rec[13]) || 0;
+      delete gone[id];
+      live[id] = rec;
     });
+    var liveRows = Object.keys(live).map(function (k) { return pad_(live[k]); })
+      .sort(function (x, y) { return (d_(x[5]) + x[1]) < (d_(y[5]) + y[1]) ? -1 : 1; });
+    var goneRows = Object.keys(gone).map(function (k) { return pad_(gone[k]); });
+    write_(bs, BOOK_HEAD, liveRows);
+    write_(cs2_(), BOOK_HEAD, goneRows);
+    if (logs.length) {
+      var hs = hist_();
+      var hr = hs.getRange(hs.getLastRow() + 1, 1, logs.length, HIST_HEAD.length);
+      hr.setNumberFormat('@'); hr.setValues(logs);
+    }
 
     // ---- 入住登記：新增一筆就記一筆（同 bookingId + ts 不重複）----
     var seen = {};
@@ -115,9 +160,7 @@ function doPost(e) {
     });
 
     // ---- 回傳全部訂單 ----
-    var all = bs.getDataRange().getValues();
-    var rows = [];
-    for (var k = 1; k < all.length; k++) rows.push(fromRow_(all[k]));
+    var rows = liveRows.concat(goneRows).map(fromRow_);
     return out_({ ok: true, rows: rows });
   } catch (err) {
     return out_({ ok: false, error: String(err) });
@@ -146,25 +189,31 @@ function fromRow_(v) {
 /** 每天自動執行：超過 6 個月的住客個資清掉 */
 function purgeOld() {
   var cut = Utilities.formatDate(new Date(Date.now() - KEEP_DAYS * 864e5), 'Asia/Taipei', 'yyyy-MM-dd');
+  var keepRet = PropertiesService.getScriptProperties().getProperty('KEEP_RETURNING') === '1';
   var cs = sheet_('入住登記', CI_HEAD);
   var cd = cs.getDataRange().getValues();
   for (var i = cd.length - 1; i >= 1; i--) {
     if (d_(cd[i][2]) && d_(cd[i][2]) < cut) cs.deleteRow(i + 1);
   }
-  var bs = sheet_('訂單', BOOK_HEAD);
-  var bd = bs.getDataRange().getValues();
-  for (var j = bd.length - 1; j >= 1; j--) {
-    var to = d_(bd[j][6]);
-    if (to && to < cut) {
-      if (bd[j][12] === '1') { bs.deleteRow(j + 1); continue; } // 已取消的舊訂單直接刪
-      var keepRet = PropertiesService.getScriptProperties().getProperty('KEEP_RETURNING') === '1';
+  // 訂單、已取消：姓名電話備註依設定清掉；已取消的舊單直接刪
+  [sheet_('訂單', BOOK_HEAD), cs2_()].forEach(function (bs) {
+    var bd = bs.getDataRange().getValues();
+    for (var j = bd.length - 1; j >= 1; j--) {
+      var to = d_(bd[j][6]);
+      if (!to || to >= cut) continue;
+      if (bd[j][12] === '1' || bd[j][12] === 1) { bs.deleteRow(j + 1); continue; }
       if ((!keepRet && (bd[j][2] || bd[j][3])) || bd[j][10]) {
-        // 只留日期、房間、金額；姓名、電話、備註清掉（開啟「保留回流客」時姓名電話保留）
         if (!keepRet) bs.getRange(j + 1, 3, 1, 2).setValues([['', '']]);
         bs.getRange(j + 1, 11, 1, 1).setValues([['']]);
         bs.getRange(j + 1, 14, 1, 1).setValues([[String(Date.now())]]);
       }
     }
+  });
+  // 歷程：超過期限的整列刪掉（含姓名電話）；開啟保留回流客時只留 6 個月內
+  var hs = hist_(), hd = hs.getDataRange().getValues();
+  for (var k = hd.length - 1; k >= 1; k--) {
+    var hday = String(hd[k][0]).slice(0, 10);
+    if (hday && hday < cut) hs.deleteRow(k + 1);
   }
 }
 
