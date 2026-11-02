@@ -58,7 +58,7 @@ textarea.inp{height:104px;padding:14px 16px;resize:none}
 /* calendar */
 .wk,.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:0 16px}
 .wk{padding-top:4px;padding-bottom:4px;text-align:center;font-size:14px;color:#5E5A52;font-weight:500}
-.cell{height:56px;border:1px solid #E8E2D5;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;color:#2B2A27;background:transparent}
+.cell{position:relative;overflow:hidden;height:56px;border:1px solid #E8E2D5;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0;color:#2B2A27;background:transparent}
 .cell b{font-size:18px;line-height:1}
 .cell span{font-size:14px;line-height:1;color:#5E5A52}
 .cell.on{background:#2B2A27!important;border-color:#2B2A27;color:#F4F1EA}
@@ -256,8 +256,9 @@ function viewCal(){
   for(i=0;i<fd;i++)cells+='<div class="cell off"><b>'+(pdim-fd+1+i)+'</b><span></span></div>';
   for(var d=1;d<=dim;d++){
     var iso=ymd(y,m,d),k=ROOMS.filter(function(r){return find(r.k,iso)}).length;
+    var bar='<i style="position:absolute;left:0;right:0;bottom:0;height:6px;display:flex">'+ROOMS.map(function(r){return '<u style="flex:1;display:block;background:'+(find(r.k,iso)?rc(r):(iso===app.sel?'#5E5A52':'#E3DDD0'))+'"></u>'}).join('')+'</i>';
     var on=iso===app.sel,f=k/ROOMS.length;
-    cells+='<button class="cell'+(on?' on':'')+'" data-act="pick" data-d="'+iso+'" aria-label="'+m+' 月 '+d+' 日 週'+wday(iso)+'，已住 '+k+' 間"'+(on?'':' style="background:rgba(180,82,31,'+(0.04+0.32*f).toFixed(2)+')"')+'><b>'+d+'</b><span>'+(k===0?'空':k+'/'+ROOMS.length)+'</span></button>';
+    cells+='<button class="cell'+(on?' on':'')+'" data-act="pick" data-d="'+iso+'" aria-label="'+m+' 月 '+d+' 日 週'+wday(iso)+'，已住 '+k+' 間"'+(on?'':' style="background:rgba(180,82,31,'+(0.04+0.32*f).toFixed(2)+')"')+'><b>'+d+'</b><span>'+(k===0?'空':k+'/'+ROOMS.length)+'</span>'+bar+'</button>';
   }
   var trail=(7-(fd+dim)%7)%7;
   for(i=1;i<=trail;i++)cells+='<div class="cell off"><b>'+i+'</b><span></span></div>';
@@ -271,8 +272,9 @@ function viewCal(){
   }).join('')}
   return '<div class="wk"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>'+
    '<div class="cal">'+cells+'</div>'+
-   '<div style="padding:12px 16px 0"><div class="muted" style="font-size:14px;text-align:center;margin-bottom:6px">顏色越深越滿，數字＝已住房數（共 '+ROOMS.length+' 間）</div><div class="legend">'+leg+'</div>'+
-   '<div class="muted" style="display:flex;justify-content:space-between;font-size:14px;margin-top:4px"><span>全空</span><span>全滿</span></div></div>'+
+   '<div style="padding:12px 16px 0"><div class="muted" style="font-size:14px;text-align:center;margin-bottom:6px">顏色越深越滿，數字＝已住房數（共 '+ROOMS.length+' 間）；底部色條＝哪幾間有人</div><div class="legend">'+leg+'</div>'+
+   '<div class="muted" style="display:flex;justify-content:space-between;font-size:14px;margin-top:4px"><span>全空</span><span>全滿</span></div>'+
+   '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:14px">'+ROOMS.map(function(r){return '<span style="display:inline-flex;align-items:center;gap:6px"><i style="width:16px;height:6px;border-radius:2px;background:'+rc(r)+';display:inline-block"></i>'+rname(r)+'</span>'}).join('')+'</div></div>'+
    dayCard()+
    '<div class="foot" style="padding-top:12px"><div id="syncst">'+esc(syncLabel())+'</div><button class="linkbtn" data-act="tab" data-t="settings">設定</button></div>';
 }
