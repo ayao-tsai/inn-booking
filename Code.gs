@@ -5,6 +5,12 @@
  */
 var BOOK_HEAD = ['id', 'room', 'who', 'phone', 'n', 'from', 'to', 'price', 'deposit', 'src', 'note', 'checked', 'deleted', 'updatedAt', 'paid'];
 var CI_HEAD = ['bookingId', 'ts', 'checkout', 'name', 'idno', 'birth', 'phone', 'plate', 'addr', 'note', 'companions', 'rooms'];
+// 房間清單（唯讀「房況摘要」用）：k 要和 App 裡的房間代號一致
+var ROOMS_ = [
+  { k: 'tc202', name: '藍徑 202', cap: 2 },
+  { k: 'tc301', name: '夕映 301', cap: 4 },
+  { k: 'tc302', name: '山嵐 302', cap: 4 }
+];
 var KEEP_DAYS = 183; // 民宿管理辦法第 28 條：登記資料保存 6 個月
 
 function sheet_(name, head) {
@@ -80,6 +86,8 @@ function doPost(e) {
     var token = PropertiesService.getScriptProperties().getProperty('TOKEN');
     if (!token) return out_({ ok: false, error: '還沒在指令碼設定密碼（TOKEN）' });
     if (body.token !== token) return out_({ ok: false, error: '密碼不對' });
+
+    if (body.action === 'summary') return out_(summary_(body.today));
 
     var bs = sheet_('訂單', BOOK_HEAD);
     var cs = sheet_('入住登記', CI_HEAD);
@@ -167,6 +175,57 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---- 唯讀房況摘要：給生活指揮所用，不會改任何資料 ----
+function addDay_(iso, n) {
+  var p = iso.split('-');
+  return Utilities.formatDate(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n)), 'UTC', 'yyyy-MM-dd');
+}
+function range_(rows, from, to) { // 區間 [from, to) 的賣出房晚、房價、訂金
+  var nights = 0, rev = 0, dep = 0, avail = 0, d;
+  for (d = from; d < to; d = addDay_(d, 1)) avail += ROOMS_.length;
+  rows.forEach(function (b) {
+    var s = b.from > from ? b.from : from, e = b.to < to ? b.to : to, n = 0;
+    for (d = s; d < e; d = addDay_(d, 1)) n++;
+    if (n > 0) { nights += n; rev += n * b.price; dep += b.deposit; }
+  });
+  return { from: from, to: to, nights_sold: nights, nights_available: avail,
+    occupancy: avail ? Math.round(nights / avail * 1000) / 10 : 0,
+    revenue_estimate: rev, deposit_received: dep, balance_due: Math.max(0, rev - dep) };
+}
+function summary_(todayIn) {
+  var today = /^\d{4}-\d{2}-\d{2}$/.test(String(todayIn || '')) ? todayIn : Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  var rows = sheet_('訂單', BOOK_HEAD).getDataRange().getValues().slice(1)
+    .map(fromRow_).filter(function (b) { return !b.deleted && b.room; });
+  var label = {}; ROOMS_.forEach(function (r) { label[r.k] = r.name; });
+  function groups(list) {
+    var m = {}, out = [];
+    list.forEach(function (b) {
+      var k = [b.who, b.phone, b.from, b.to].join('|');
+      if (!m[k]) { m[k] = { who: b.who || '', guests: 0, rooms: [], from: b.from, to: b.to, checked_in: true }; out.push(m[k]); }
+      m[k].guests += b.n; m[k].rooms.push(label[b.room] || b.room); if (!b.checked) m[k].checked_in = false;
+    });
+    return out;
+  }
+  var ins = groups(rows.filter(function (b) { return b.from === today; }));
+  var outs = groups(rows.filter(function (b) { return b.to === today; }));
+  var stay = rows.filter(function (b) { return b.from <= today && today < b.to; });
+  var used = {}; stay.forEach(function (b) { used[b.room] = 1; });
+  var tomorrow = addDay_(today, 1);
+  var usedT = {}; rows.forEach(function (b) { if (b.from <= tomorrow && tomorrow < b.to) usedT[b.room] = 1; });
+  var ms = today.slice(0, 8) + '01', y = +today.slice(0, 4), mo = +today.slice(5, 7);
+  var me = Utilities.formatDate(new Date(Date.UTC(y, mo, 1)), 'UTC', 'yyyy-MM-dd');
+  var mm = range_(rows, ms, me); mm.month = today.slice(0, 7);
+  return {
+    ok: true, today: today, generated_at: Date.now(), total_rooms: ROOMS_.length,
+    today_checkins: ins, today_checkouts: outs,
+    occupied_tonight: ROOMS_.filter(function (r) { return used[r.k]; }).map(function (r) { return r.name; }),
+    empty_tonight: ROOMS_.filter(function (r) { return !used[r.k]; }).map(function (r) { return r.name; }),
+    empty_tomorrow: ROOMS_.filter(function (r) { return !usedT[r.k]; }).map(function (r) { return r.name; }),
+    this_month: mm,
+    next_30_days: range_(rows, today, addDay_(today, 30))
+  };
 }
 
 function toRow_(r) {
