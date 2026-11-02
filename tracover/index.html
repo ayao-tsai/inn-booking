@@ -96,6 +96,32 @@ nav button.on{font-weight:700;color:#2B2A27;border-top-color:#B4521F}
 #toast.show{opacity:1}
 .foot{font-size:14px;color:#5E5A52;text-align:center;padding:4px 16px 12px}
 .linkbtn{border:0;background:transparent;color:#5E5A52;text-decoration:underline;font-size:14px;padding:8px}
+.sdot{display:inline-block;width:12px;height:12px;border-radius:6px;vertical-align:middle;margin-right:6px;background:#9A9486}
+.steps{display:flex;gap:6px}
+.steps i{flex:1;height:5px;border-radius:3px;background:#DDD6C6;display:block}
+.steps i.on{background:#B4521F}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:6px}
+.tile{border-radius:14px;padding:10px 6px;text-align:center}
+.tile b{display:block;font-family:'Noto Serif TC',serif;font-size:28px;font-weight:600;line-height:1.1}
+.tile span{font-size:14px;font-weight:700}
+.sech{font-size:15px;font-weight:700;margin:14px 0 2px;color:#5E5A52}
+.rowmain{flex:1;min-width:0;border:0;background:transparent;text-align:left;padding:4px 0;color:#2B2A27;font-family:inherit}
+.telbtn{display:flex;align-items:center;gap:10px;height:60px;border-radius:14px;border:1.5px solid #1A72A6;color:#1A72A6;font-size:22px;font-weight:700;text-decoration:none;padding:0 16px;background:#FBF9F4}
+.pchip{height:40px;padding:0 14px;border-radius:20px;border:1.5px solid #CFC7B5;background:#FBF9F4;font-size:15px;font-weight:500;color:#2B2A27}
+#dlg{display:none;position:fixed;inset:0;z-index:30}
+#dlg .shade{position:absolute;inset:0;background:rgba(43,42,39,.55)}
+#dlg .box{position:absolute;left:20px;right:20px;top:26%;max-width:440px;margin:0 auto;background:#FBF9F4;border-radius:20px;padding:22px 20px 20px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+#dlg h2{margin:0;font-family:'Noto Serif TC',serif;font-size:22px}
+#dlg p{margin:10px 0 0;font-size:16px;line-height:1.6}
+#dlg .same{margin-top:14px;background:#F4F1EA;border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.6}
+#snack{position:fixed;left:50%;transform:translateX(-50%);bottom:92px;width:calc(100% - 32px);max-width:448px;background:#2B2A27;color:#F4F1EA;border-radius:16px;padding:6px 8px 6px 18px;display:none;align-items:center;justify-content:space-between;font-size:16px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:25}
+#snack.show{display:flex}
+#snack button{height:48px;padding:0 16px;border:0;background:transparent;color:#F2B58D;font:700 17px 'Noto Sans TC',sans-serif}
+.sw{width:56px;height:32px;border-radius:16px;background:#CFC7B5;position:relative;flex-shrink:0;border:0;padding:0}
+.sw i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:#fff;display:block;transition:left .15s}
+.sw[aria-checked=true]{background:#4A5A44}
+.sw[aria-checked=true] i{left:27px}
+.tg{display:inline-block;border-radius:12px;padding:4px 10px;font-size:13px;font-weight:700;margin:4px 6px 0 0}
 </style>
 </head>
 <body>
@@ -106,6 +132,8 @@ nav button.on{font-weight:700;color:#2B2A27;border-top-color:#B4521F}
 </div>
 <input type="file" id="scan" accept="image/*" capture="environment" hidden>
 <div id="toast" role="status"></div>
+<div id="snack" role="status"></div>
+<div id="dlg"></div>
 <script>
 (function(){
 'use strict';
@@ -130,15 +158,16 @@ var KEY=CFG.key;
 var bookings;
 function load(k,def){try{var r=localStorage.getItem(k);return r?JSON.parse(r):def}catch(e){return def}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-var SKEY=KEY+'_sync',DKEY=KEY+'_dirty',QKEY=KEY+'_ciq',TKEY=KEY+'_tomb';
+var SKEY=KEY+'_sync',DKEY=KEY+'_dirty',QKEY=KEY+'_ciq',TKEY=KEY+'_tomb',STKEY=KEY+'_set',FQKEY=KEY+'_fq';
 bookings=load(KEY,seed());
 var syncCfg=load(SKEY,{url:'',token:'',last:0}), dirty=load(DKEY,[]), ciq=load(QKEY,[]), tomb=load(TKEY,{});
+var settings=load(STKEY,{keep:false}), fq=load(FQKEY,[]);
 function persist(){save(KEY,bookings)}
 function touch(b){b.updatedAt=Date.now();if(dirty.indexOf(b.id)<0)dirty.push(b.id);save(DKEY,dirty)}
 /* 6 個月後清除旅客個資（民宿管理辦法第 28 條）：訂單只留日期、房間、金額，姓名電話清掉 */
 function purgeLocal(){
   var cut=addDay(TODAY0(),-183),ch=false;
-  bookings.forEach(function(b){if(b.to<cut&&(b.who||b.phone)){b.who='';b.phone='';ch=true}});
+  bookings.forEach(function(b){if(b.to<cut){if(!settings.keep&&(b.who||b.phone)){b.who='';b.phone='';ch=true}if(b.note){b.note='';ch=true}}});
   var n=ciq.length;ciq=ciq.filter(function(c){return c.checkout>=cut});if(ciq.length!==n){save(QKEY,ciq)}
   if(ch)persist();
 }
@@ -183,7 +212,7 @@ var ICON={
 };
 
 /* ---------- state ---------- */
-function freshOrder(inD){return {inD:inD,outD:addDay(inD,1),rooms:{},guests:{},name:'',phone:'',src:'電話',price:{},deposit:'',note:''}}
+function freshOrder(inD){return {step:1,inD:inD,outD:addDay(inD,1),rooms:{},guests:{},name:'',phone:'',src:'電話',price:{},deposit:'',note:''}}
 var T=new Date(),TODAY=ymd(T.getFullYear(),T.getMonth()+1,T.getDate());
 var syncing=false,syncMsg='';
 var app={tab:'cal',y:T.getFullYear(),m:T.getMonth()+1,sel:TODAY,sort:'rev',ci:null,checkId:null};
@@ -191,6 +220,7 @@ app.order=freshOrder(app.sel);
 
 var $head=document.getElementById('head'), $view=document.getElementById('view'), $nav=document.getElementById('nav'), $toast=document.getElementById('toast');
 var toastT;
+var $dlg=document.getElementById('dlg'), $snack=document.getElementById('snack');
 function toast(msg){$toast.textContent=msg;$toast.className='show';clearTimeout(toastT);toastT=setTimeout(function(){$toast.className=''},2600)}
 
 /* ---------- shell ---------- */
@@ -198,20 +228,23 @@ var TABS=[['cal','房況','cal'],['order','新增訂單','order'],['checkin','�
 function renderNav(){
   $nav.innerHTML=TABS.map(function(t){return '<button class="'+(app.tab===t[0]?'on':'')+'" data-act="tab" data-t="'+t[0]+'">'+ICON[t[2]]+t[1]+'</button>'}).join('');
 }
+function syncColor(){return !syncCfg.url?'#9A9486':syncing?'#D99A2B':syncMsg?'#B4521F':'#4A7A3F'}
+function dot(){return '<i class="sdot" style="background:'+syncColor()+'" title="'+esc(syncLabel())+'"></i>'}
 function hdrMonth(sub){
   return '<div class="hdr"><button class="iconbtn" data-act="mon" data-d="-1" aria-label="上個月">'+ICON.left+'</button>'+
-   '<div class="t"><b>'+app.y+' 年 '+app.m+' 月</b><span>'+sub+'</span></div>'+
+   '<div class="t"><b>'+app.y+' 年 '+app.m+' 月</b><span>'+dot()+sub+'</span></div>'+
    '<button class="iconbtn" data-act="mon" data-d="1" aria-label="下個月">'+ICON.right+'</button></div>';
 }
 function hdrPlain(title){
-  return '<div class="hdr"><button class="iconbtn" data-act="tab" data-t="cal" aria-label="回房況">'+ICON.left+'</button><div class="t" style="text-align:left;padding-left:4px"><b style="font-size:26px">'+title+'</b><span style="text-align:left">'+NAMEH+'</span></div><span class="iconbtn ph"></span></div>';
+  return '<div class="hdr"><button class="iconbtn" data-act="tab" data-t="cal" aria-label="回房況">'+ICON.left+'</button><div class="t" style="text-align:left;padding-left:4px"><b style="font-size:26px">'+title+'</b><span style="text-align:left">'+NAMEH+'</span></div><button class="iconbtn" data-act="tab" data-t="settings" aria-label="同步狀態">'+dot()+'</button></div>';
 }
 function render(){
   renderNav();
   if(app.tab==='cal'){$head.innerHTML=hdrMonth(NAMEH+'　房況');$view.innerHTML=viewCal()}
   else if(app.tab==='order'){$head.innerHTML=hdrPlain(app.order.editIds?'編輯訂單':'新增訂單');$view.innerHTML=viewOrder();refreshOrder()}
   else if(app.tab==='checkin'){$head.innerHTML=hdrPlain('入住登記');$view.innerHTML=viewCheckin();refreshCi()}
-  else if(app.tab==='settings'){$head.innerHTML=hdrPlain('同步設定');$view.innerHTML=viewSettings()}
+  else if(app.tab==='detail'){$head.innerHTML=hdrPlain('訂單詳情');$view.innerHTML=viewDetail()}
+  else if(app.tab==='settings'){$head.innerHTML=hdrPlain('設定');$view.innerHTML=viewSettings()}
   else {$head.innerHTML=hdrMonth(NAMEH+'　營收（含已預訂）');$view.innerHTML=viewRev()}
 }
 
@@ -240,42 +273,133 @@ function viewCal(){
    '<div class="cal">'+cells+'</div>'+
    '<div style="padding:12px 16px 0"><div class="muted" style="font-size:14px;text-align:center;margin-bottom:6px">顏色越深越滿，數字＝已住房數（共 '+ROOMS.length+' 間）</div><div class="legend">'+leg+'</div>'+
    '<div class="muted" style="display:flex;justify-content:space-between;font-size:14px;margin-top:4px"><span>全空</span><span>全滿</span></div></div>'+
-   '<div class="card" style="margin:12px 16px 0;padding:14px 16px 8px"><div class="serif" style="font-size:20px;font-weight:600;letter-spacing:.04em;margin-bottom:8px">'+(+app.sel.split('-')[1])+' 月 '+(+app.sel.split('-')[2])+' 日　週'+wday(app.sel)+'</div>'+
-   CFG.groups.map(function(g,gi){return (g.flat?'':'<div class="grp" style="padding:'+(gi?'14px':'8px')+' 0 6px;margin:0;'+(gi?'border-top:1px solid #E4DED1':'')+'"><span class="dot" style="background:'+g.color+'"></span>'+g.name+'</div>')+rows(g.list)}).join('')+'</div>'+
-   '<div class="foot" style="padding-top:12px"><div id="syncst">'+esc(syncLabel())+'</div><button class="linkbtn" data-act="tab" data-t="settings">同步設定</button></div>';
+   dayCard()+
+   '<div class="foot" style="padding-top:12px"><div id="syncst">'+esc(syncLabel())+'</div><button class="linkbtn" data-act="tab" data-t="settings">設定</button></div>';
+}
+
+/* ---------- day status ---------- */
+function gInfo(b){
+  var g=group(b),nights=Math.max(1,dayDiff(b.from,b.to)),total=g.reduce(function(s,x){return s+(x.price||0)},0)*nights,dep=g.reduce(function(s,x){return s+(x.deposit||0)},0);
+  return {g:g,nights:nights,total:total,dep:dep,bal:Math.max(0,total-dep),paid:g.some(function(x){return x.paid}),n:g.reduce(function(s,x){return s+(x.n||0)},0),
+    rooms:g.map(function(x){var r=room(x.room);return r?rname(r):x.room}).join('、')};
+}
+function uniqGroups(list){var seen={},out=[];list.forEach(function(b){var k=[b.who,b.phone,b.from,b.to].join('|');if(!seen[k]){seen[k]=1;out.push(b)}});return out}
+function fmtPh(p){p=digits(p);return p.length===10?p.slice(0,4)+' '+p.slice(4,7)+' '+p.slice(7):p}
+function dayLine(b,right,sub){
+  var I=gInfo(b),bk=backInfo(b.phone,b.from,b.id);
+  return '<div class="row" style="min-height:56px"><button class="rowmain" data-act="detail" data-id="'+b.id+'"><div style="font-size:17px;font-weight:700">'+esc(b.who||'（已清除）')+(bk?' <span class="back back-pill">回流</span>':'')+'</div><div class="muted" style="font-size:14px">'+esc(I.rooms)+'・'+I.n+' 人'+(sub||'')+'</div></button>'+right+'</div>';
+}
+function dayCard(){
+  var sel=app.sel,ins=uniqGroups(bookings.filter(function(b){return b.from===sel})),outs=uniqGroups(bookings.filter(function(b){return b.to===sel}));
+  var empty=ROOMS.filter(function(r){return !find(r.k,sel)});
+  var none='<div class="muted" style="font-size:15px;padding:6px 0 4px">沒有</div>';
+  var inH=ins.map(function(b){return dayLine(b,'<button class="pill '+(b.checked?'done':'dark')+'" data-act="checkin" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>')}).join('')||none;
+  var outH=outs.map(function(b){var I=gInfo(b);return dayLine(b,I.paid?'<span class="pill done">尾款已收</span>':(I.bal>0?'<span style="text-align:right;font-size:14px;line-height:1.3" class="muted">尾款<br><b style="color:#2B2A27;font-size:16px">'+money(I.bal)+'</b></span>':'<span class="muted" style="font-size:14px">無尾款</span>'))}).join('')||none;
+  function rrow(r){
+    var b=find(r.k,sel);
+    return '<div class="row"><span class="bar" style="background:'+rc(r)+'"></span><div class="no" style="width:'+(r.label?'92px':'64px')+'"><b>'+(r.label?r.label+' ':'')+r.no+'</b><span>'+r.cap+' 人房</span></div>'+
+     (b?'<button class="rowmain" data-act="detail" data-id="'+b.id+'"><div style="font-size:16px;font-weight:500">'+esc(b.who||'（已清除）')+' · '+b.n+' 人</div><div class="muted" style="font-size:14px">'+md(b.from)+' – '+md(b.to)+'</div></button>':'<div class="who muted" style="font-size:16px">空房</div><button class="pill ghost" data-act="new" data-k="'+r.k+'">＋ 新增</button>')+'</div>';
+  }
+  var isToday=sel===TODAY;
+  return '<div class="card" style="margin:12px 16px 0;padding:14px 16px 10px"><div class="serif" style="font-size:20px;font-weight:600;letter-spacing:.04em;margin-bottom:10px">'+(+sel.split('-')[1])+' 月 '+(+sel.split('-')[2])+' 日　週'+wday(sel)+(isToday?'　<span style="font-size:14px;color:#B4521F">今天</span>':'')+'</div>'+
+   '<div class="tiles"><div class="tile" style="background:#F6E4D8;color:#6E2E0C"><b>'+ins.length+'</b><span>入住</span></div><div class="tile" style="background:#DCEAF3;color:#124B6D"><b>'+outs.length+'</b><span>退房</span></div><div class="tile" style="background:#E6EBE2;color:#34402F"><b>'+empty.length+'</b><span>空房</span></div></div>'+
+   '<div class="sech">今天入住'.replace('今天',isToday?'今天':'這天')+'</div>'+inH+
+   '<div class="sech">'+(isToday?'今天':'這天')+'退房</div>'+outH+
+   '<div class="sech">各房間</div>'+CFG.groups.map(function(g){return (g.flat?'':'<div class="grp" style="padding:8px 0 4px;margin:0"><span class="dot" style="background:'+g.color+'"></span>'+g.name+'</div>')+g.list.map(rrow).join('')}).join('')+'</div>';
+}
+
+/* ---------- order detail ---------- */
+function viewDetail(){
+  var b=bookings.filter(function(x){return x.id===app.detailId})[0];
+  if(!b)return '<div class="pad"><div class="card muted" style="font-size:18px">找不到這筆訂單（可能已取消）</div><button class="ghostbtn" data-act="tab" data-t="cal">回房況</button></div>';
+  var I=gInfo(b),bk=backInfo(b.phone,b.from,b.id),note=(I.g.filter(function(x){return x.note})[0]||{note:''}).note;
+  function kv(k,v){return '<div class="muted" style="font-size:14px">'+k+'</div><div style="font-size:18px;font-weight:500">'+v+'</div>'}
+  return '<div class="pad" style="gap:16px">'+
+   '<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b class="serif" style="font-size:26px">'+esc(b.who||'（已清除）')+'</b>'+(bk?'<span class="back back-pill">回流・第 '+bk.times+' 次</span>':'')+'</div>'+
+   (b.phone?'<a class="telbtn" style="margin-top:12px" href="tel:'+esc(digits(b.phone))+'" aria-label="撥打電話 '+esc(fmtPh(b.phone))+'"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg><span style="flex:1">'+esc(fmtPh(b.phone))+'</span><span style="font-size:14px">點一下撥打</span></a>':'<div class="muted" style="margin-top:10px">沒有留電話</div>')+
+   '<div style="display:grid;grid-template-columns:72px minmax(0,1fr);row-gap:12px;margin-top:16px;align-items:center">'+kv('怎麼訂的',esc(b.src||'—'))+kv('日期',md(b.from)+' – '+md(b.to)+'　共 '+I.nights+' 晚')+kv('房間',esc(I.rooms))+kv('人數',I.n+' 人')+(note?kv('備註',esc(note)):'')+'</div></div>'+
+   '<div class="card" style="display:flex;flex-direction:column;gap:8px;font-size:16px"><div style="display:flex;justify-content:space-between"><span class="muted">房價合計（'+I.nights+' 晚）</span><b>'+money(I.total)+'</b></div><div style="display:flex;justify-content:space-between"><span class="muted">已收訂金</span><b>'+money(I.dep)+'</b></div><div style="height:1px;background:#E4DED1"></div><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:18px">'+(I.paid?'尾款':'尾款（入住時收）')+'</b><span class="serif" style="font-size:26px;font-weight:600">'+money(I.bal)+'</span></div>'+
+   (I.bal>0||I.paid?(I.paid?'<div class="alert" style="background:#E6EBE2;color:#34402F;font-weight:700;margin-top:4px">✓ 尾款已收　<button class="linkbtn" style="margin-left:auto" data-act="paid" data-id="'+b.id+'">取消標記</button></div>':'<button class="ghostbtn" style="margin-top:6px" data-act="paid" data-id="'+b.id+'">標記尾款已收</button>'):'')+'</div>'+
+   (b.checked?'<div class="alert" style="background:#E6EBE2;color:#34402F;font-weight:700">✓ 已完成入住登記</div>':'<button class="primary" style="margin-top:0" data-act="checkin" data-id="'+b.id+'">登記入住</button>')+
+   '<button class="ghostbtn" data-act="edit" data-id="'+b.id+'">編輯訂單</button>'+
+   '<button class="ghostbtn" style="color:#B4521F;border-color:#B4521F" data-act="cancelgrp" data-id="'+b.id+'">取消這筆訂單</button></div>';
+}
+var snackT,undoFn=null,syncDefer;
+function snack(msg,fn){clearTimeout(snackT);undoFn=fn;$snack.innerHTML='<span>'+esc(msg)+'</span><button data-act="undo">復原</button>';$snack.className='show';snackT=setTimeout(hideSnack,10000)}
+function hideSnack(){$snack.className='';undoFn=null}
+function cancelGroup(ids,name){
+  var removed=bookings.filter(function(x){return ids.indexOf(x.id)>=0});
+  ids.forEach(function(id){tomb[id]={id:id,deleted:true,updatedAt:Date.now()}});
+  bookings=bookings.filter(function(x){return ids.indexOf(x.id)<0});save(TKEY,tomb);persist();
+  snack('已取消「'+(name||'')+'」的訂單',function(){
+    removed.forEach(function(b){delete tomb[b.id];bookings.push(b);touch(b)});
+    save(TKEY,tomb);persist();render();sync();toast('已復原');
+  });
+  clearTimeout(syncDefer);syncDefer=setTimeout(sync,10500);
+}
+/* ---------- retention settings ---------- */
+function forgetMatches(){var p=digits(app.fp);if(p.length<9)return [];return bookings.filter(function(b){return digits(b.phone)===p})}
+function forgetLabel(){var m=forgetMatches();return m.length?'刪除「'+esc(m[0].who||'這位旅客')+'」的個人資料（'+m.length+' 筆訂單）':'輸入電話後，這裡會顯示找到幾筆'}
+function refreshForget(){var b=$i('f-btn');if(!b)return;b.innerHTML=forgetLabel();b.disabled=!forgetMatches().length;b.style.opacity=b.disabled?'.5':'1'}
+function keepCards(){
+  var on=!!settings.keep;
+  return '<div class="card" style="line-height:1.6"><b style="font-size:17px">住客登記資料</b><div class="muted" style="font-size:14px;margin-top:4px">依「民宿管理辦法」第 28 條，保存 6 個月後自動刪除，這項不能關閉。</div><div style="margin-top:6px"><span class="tg" style="background:#F1E1D8;color:#8A3B12;text-decoration:line-through">身分證號</span><span class="tg" style="background:#F1E1D8;color:#8A3B12;text-decoration:line-through">生日</span><span class="tg" style="background:#F1E1D8;color:#8A3B12;text-decoration:line-through">車牌</span><span class="tg" style="background:#F1E1D8;color:#8A3B12;text-decoration:line-through">地址</span><span class="tg" style="background:#F1E1D8;color:#8A3B12;text-decoration:line-through">同行旅客</span></div></div>'+
+   '<div class="card" style="line-height:1.6"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b style="font-size:17px">保留回流客名單</b><div class="muted" style="font-size:14px;margin-top:4px">開啟後，滿 6 個月的訂單仍保留姓名與電話，房況才認得出老客人。</div></div><button class="sw" role="switch" aria-checked="'+on+'" aria-label="保留回流客名單" data-act="keep"><i></i></button></div>'+
+   '<div style="margin-top:6px"><span class="tg" style="background:#E6EBE2;color:#34402F">姓名</span><span class="tg" style="background:#E6EBE2;color:#34402F">電話</span><span class="tg" style="background:#E6EBE2;color:#34402F">住宿次數</span><span class="tg" style="background:#E6EBE2;color:#34402F">上次入住日</span></div>'+
+   '<div class="muted" style="font-size:14px;margin-top:10px">關閉時：姓名和電話也會在 6 個月後一併清除，之後就不會顯示「回流」。備註一律在 6 個月後清除。</div></div>'+
+   '<div class="alert" style="display:block;line-height:1.6;background:#F6EEDC;color:#5A4514">開啟前，請先告知旅客並取得同意，例如在訂房訊息或登記表上加一句：「為提供熟客服務，我們會保留您的姓名與電話，隨時可通知我們刪除。」</div>'+
+   '<div class="card"><b style="font-size:17px">旅客要求刪除</b><div class="muted" style="font-size:14px;margin:4px 0 10px;line-height:1.6">用電話找到這位旅客，一次清掉他所有訂單上的姓名、電話、備註，以及登記資料。</div><input class="inp" type="tel" inputmode="tel" placeholder="旅客電話" aria-label="旅客電話" value="'+esc(app.fp||'')+'" data-in="fphone"><button id="f-btn" class="ghostbtn" style="margin-top:12px;color:#B4521F;border-color:#B4521F;height:52px;font-size:16px" data-act="forget">'+forgetLabel()+'</button></div>';
 }
 
 /* ---------- order ---------- */
 function pickedRooms(){var o=app.order;return ROOMS.filter(function(r){return o.rooms[r.k]})}
+function busyFor(r){var o=app.order;if(!(dayDiff(o.inD,o.outD)>=1))return null;for(var d=o.inD;d<o.outD;d=addDay(d,1)){var c=find(r.k,d);if(c&&!(o.editIds&&o.editIds.indexOf(c.id)>=0))return c}return null}
+function $i(id){return document.getElementById(id)}
+function setH(id,h){var e=$i(id);if(e)e.innerHTML=h}
 function viewOrder(){
-  var o=app.order;
-  return '<div class="pad">'+
-  '<div><div class="grid2"><div><label class="lbl" for="o-in">入住日期</label><input id="o-in" type="date" class="inp sm" value="'+o.inD+'" data-in="inD"></div>'+
-  '<div><label class="lbl" for="o-out">退房日期</label><input id="o-out" type="date" class="inp sm" value="'+o.outD+'" data-in="outD"></div></div><div id="o-nights" class="muted" style="margin-top:8px"></div></div>'+
-  '<div><div class="lbl">房間（可多選）</div><div id="o-rooms"></div><div id="o-sum" style="margin-top:10px;font-size:16px"></div></div>'+
-  '<div><div class="lbl">各房人數</div><div id="o-guests"></div></div>'+
-  '<div><label class="lbl" for="o-name">訂房人姓名</label><input id="o-name" class="inp" type="text" placeholder="例：王小姐" value="'+esc(o.name)+'" data-in="name"></div>'+
-  '<div><label class="lbl" for="o-phone">聯絡電話</label><input id="o-phone" class="inp" type="tel" inputmode="tel" placeholder="09xx xxx xxx" value="'+esc(o.phone)+'" data-in="phone"><div id="o-back"></div></div>'+
-  '<div><div class="lbl">訂房管道</div><div style="display:flex;flex-wrap:wrap;gap:10px" id="o-src"></div></div>'+
-  '<div><div class="lbl">房價（每間每晚，每次自己填）</div><div class="card" style="padding:0 16px" id="o-price"></div></div>'+
-  '<div><label class="lbl" for="o-dep">已收訂金</label><div style="display:flex;align-items:center;gap:10px"><input id="o-dep" class="inp" type="text" inputmode="numeric" placeholder="0" value="'+esc(o.deposit)+'" data-in="deposit"><span class="muted" style="font-size:18px">元</span></div></div>'+
-  '<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:16px" id="o-calc"></div>'+
-  '<div><label class="lbl" for="o-note">備註</label><textarea id="o-note" class="inp" rows="3" placeholder="例：晚上 8 點才到、要加床" data-in="note">'+esc(o.note)+'</textarea></div>'+
-  '<button class="primary" data-act="save">'+(o.editIds?'儲存修改':'儲存訂單')+'</button>'+(o.editIds?'<button class="ghostbtn" data-act="canceledit">不改了，回房況</button><button class="ghostbtn" style="color:#B4521F;border-color:#B4521F" data-act="delorder">取消這筆訂單</button>':'')+'</div>';
+  var o=app.order,s=o.step||1,T3=['哪天、哪間房','客人是誰','房價和訂金'];
+  var h='<div class="pad" style="gap:20px"><div><div class="steps">'+[1,2,3].map(function(i){return '<i class="'+(i<=s?'on':'')+'"></i>'}).join('')+'</div><div class="muted" style="font-size:14px;margin-top:8px">第 '+s+' 步，共 3 步：'+T3[s-1]+'</div></div>';
+  if(s===1){
+    h+='<div><div class="lbl">哪天入住</div><div id="o-chips" style="display:flex;flex-wrap:wrap;gap:8px"></div></div><div id="o-dates"></div>'+
+    '<div><div class="lbl">房間（可多選）</div><div id="o-rooms"></div></div>';
+  } else if(s===2){
+    h+='<div><label class="lbl" for="o-name">訂房人姓名</label><input id="o-name" class="inp" type="text" placeholder="例：王小姐" value="'+esc(o.name)+'" data-in="name"></div>'+
+    '<div><label class="lbl" for="o-phone">聯絡電話</label><input id="o-phone" class="inp" type="tel" inputmode="tel" placeholder="09xx xxx xxx" value="'+esc(o.phone)+'" data-in="phone"><div id="o-back"></div></div>'+
+    '<div><div class="lbl">怎麼訂的</div><div style="display:flex;flex-wrap:wrap;gap:10px" id="o-src"></div></div>'+
+    '<div><div class="lbl">各房人數</div><div id="o-guests"></div><div id="o-sum" style="margin-top:10px;font-size:16px"></div></div>';
+  } else {
+    h+='<div class="card" style="padding:12px 16px;font-size:16px;line-height:1.6"><b>'+esc(o.name)+'</b>　'+md(o.inD)+' – '+md(o.outD)+'<br><span class="muted">'+pickedRooms().map(rname).join('、')+'</span></div>'+
+    '<div><div class="lbl">房價（每間每晚，每次自己填）</div><div class="card" style="padding:0 16px" id="o-price"></div></div>'+
+    '<div><label class="lbl" for="o-dep">已收訂金</label><div style="display:flex;align-items:center;gap:10px"><input id="o-dep" class="inp" type="text" inputmode="numeric" placeholder="0" value="'+esc(o.deposit)+'" data-in="deposit"><span class="muted" style="font-size:18px">元</span></div></div>'+
+    '<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:16px" id="o-calc"></div>'+
+    '<div><label class="lbl" for="o-note">備註</label><textarea id="o-note" class="inp" rows="3" placeholder="例：晚上 8 點才到、要加床" data-in="note">'+esc(o.note)+'</textarea></div>';
+  }
+  h+='<div style="display:flex;gap:10px">'+(s>1?'<button class="ghostbtn" style="flex:1" data-act="prev">上一步</button>':'')+
+    (s<3?'<button class="primary" style="flex:2;margin-top:0" data-act="next">'+(s===1?'下一步：客人':'下一步：房價')+'</button>':'<button class="primary" style="flex:2;margin-top:0" data-act="save">'+(o.editIds?'儲存修改':'儲存訂單')+'</button>')+'</div>';
+  if(o.editIds)h+='<button class="ghostbtn" data-act="canceledit">不改了，回房況</button>'+(s===3?'<button class="ghostbtn" style="color:#B4521F;border-color:#B4521F" data-act="delorder">取消這筆訂單</button>':'');
+  return h+'</div>';
 }
-function refreshOrder(){refreshNights();refreshRooms();refreshGuests();refreshBack();refreshSrc();refreshPriceRows();refreshCalc()}
-function refreshNights(){var o=app.order,g=dayDiff(o.inD,o.outD);document.getElementById('o-nights').textContent=(g>=1)?'共 '+g+' 晚':'退房日要晚於入住日'}
-function refreshRooms(){
+function refreshOrder(){refreshChips();refreshNights();refreshRooms();refreshGuests();refreshBack();refreshSrc();refreshPriceRows();refreshCalc()}
+function dateMode(){var o=app.order;if(o.custom)return 'custom';if(o.inD===TODAY&&o.outD===addDay(TODAY,1))return 'today';var f=wkndStart();if(o.inD===f&&o.outD===addDay(f,2))return 'wknd';return 'custom'}
+function wkndStart(){var dow=new Date(Date.parse(TODAY)).getUTCDay();return addDay(TODAY,(5-dow+7)%7)}
+function refreshChips(){
+  var el=$i('o-chips');if(!el)return;var m=dateMode();
+  el.innerHTML=[['today','今天入住 1 晚'],['wknd','這個週末 2 晚'],['custom','自己選日期']].map(function(c){var on=m===c[0];return '<button class="chip" data-act="chip" data-c="'+c[0]+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+c[1]+'</button>'}).join('');
   var o=app.order;
-  function btn(r){var on=!!o.rooms[r.k],c=rc(r);return '<button class="rbtn" data-act="room" data-k="'+r.k+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?c:'#CFC7B5')+';background:'+(on?c:'#FBF9F4')+';color:'+(on?'#fff':'#2B2A27')+'"><b>'+r.no+'</b>'+(r.label?r.label+'・':'')+r.cap+' 人房</button>'}
-  document.getElementById('o-rooms').innerHTML=CFG.groups.map(function(g,gi){
+  $i('o-dates').innerHTML=(m==='custom'?'<div class="grid2"><div><label class="lbl" for="o-in">入住日期</label><input id="o-in" type="date" class="inp sm" value="'+o.inD+'" data-in="inD"></div><div><label class="lbl" for="o-out">退房日期</label><input id="o-out" type="date" class="inp sm" value="'+o.outD+'" data-in="outD"></div></div>':'')+'<div id="o-nights" class="muted" style="margin-top:8px"></div>';
+}
+function refreshNights(){var e=$i('o-nights');if(!e)return;var o=app.order,g=dayDiff(o.inD,o.outD);e.textContent=(g>=1)?md(o.inD)+' 入住，'+md(o.outD)+' 退房，共 '+g+' 晚':'退房日要晚於入住日'}
+function refreshRooms(){
+  var o=app.order;if(!$i('o-rooms'))return;
+  function btn(r){var on=!!o.rooms[r.k],c=rc(r),bz=busyFor(r),dim=bz&&!on;return '<button class="rbtn" data-act="room" data-k="'+r.k+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?c:'#CFC7B5')+';background:'+(on?c:'#FBF9F4')+';color:'+(on?'#fff':'#2B2A27')+(dim?';opacity:.45':'')+'"><b>'+r.no+'</b>'+(dim?'這幾天有人住':(r.label?r.label+'・':'')+r.cap+' 人房')+'</button>'}
+  $i('o-rooms').innerHTML=CFG.groups.map(function(g,gi){
     return (g.flat?'':'<div class="grp" style="'+(gi?'margin-top:16px':'')+'"><span class="dot" style="background:'+g.color+'"></span>'+g.name+'</div>')+'<div class="grid3">'+g.list.map(btn).join('')+'</div>';
   }).join('');
 }
 function stepper(k,f,l,v){return '<div class="step" style="min-height:56px"><div class="l" style="font-size:18px">'+l+'</div><button class="rnd" style="width:44px;height:44px;border-radius:22px" data-act="adj" data-k="'+k+'" data-f="'+f+'" data-d="-1" aria-label="'+l+'減一">'+ICON.minus+'</button><div class="n" style="width:48px;font-size:24px">'+v+'</div><button class="rnd" style="width:44px;height:44px;border-radius:22px" data-act="adj" data-k="'+k+'" data-f="'+f+'" data-d="1" aria-label="'+l+'加一">'+ICON.plus+'</button></div>'}
 function refreshGuests(){
-  var o=app.order,p=pickedRooms(),el=document.getElementById('o-guests'),sum=document.getElementById('o-sum');
-  if(!p.length){el.innerHTML='<div class="card muted" style="padding:20px 16px">選了房間，這裡就會出現各房人數</div>';sum.textContent='請先選房間';sum.style.color='#5E5A52';return}
+  var o=app.order,p=pickedRooms(),el=$i('o-guests'),sum=$i('o-sum');if(!el)return;
+  if(!p.length){el.innerHTML='<div class="card muted" style="padding:20px 16px">還沒選房間，請回上一步</div>';sum.textContent='';return}
   var tot=0;
   el.innerHTML='<div class="card" style="padding:4px 16px">'+p.map(function(r,i){
     var g=o.guests[r.k]||{a:2,c:0},over=g.a+g.c>r.cap;tot+=g.a+g.c;
@@ -284,39 +408,66 @@ function refreshGuests(){
   sum.textContent='已選 '+p.length+' 間，共 '+tot+' 人';sum.style.color='#2B2A27';
 }
 function refreshBack(){
-  var o=app.order,bk=backInfo(o.phone,o.editIds?o.inD:null,null),el=document.getElementById('o-back');
+  var o=app.order,el=$i('o-back');if(!el)return;var bk=backInfo(o.phone,o.editIds?o.inD:null,null);
   el.innerHTML=bk?'<div class="back" style="margin-top:10px;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px">'+ICON.again+'<div><div style="font-size:18px;font-weight:700">回流客・第 '+bk.times+' 次住宿</div><div style="font-size:14px">上次 '+md(bk.last.from)+' – '+md(bk.last.to)+'　'+rname(room(bk.last.room))+'</div></div></div>':'';
 }
 function refreshSrc(){
-  var o=app.order;
-  document.getElementById('o-src').innerHTML=SRC.map(function(s){var on=o.src===s;return '<button class="chip" data-act="src" data-s="'+s+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+s+'</button>'}).join('');
+  var o=app.order;if(!$i('o-src'))return;
+  $i('o-src').innerHTML=SRC.map(function(s){var on=o.src===s;return '<button class="chip" data-act="src" data-s="'+s+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+s+'</button>'}).join('');
+}
+function priceSug(k){
+  var o=app.order,p=digits(o.phone),out=[],seen={};
+  function add(label,v){if(v>0&&!seen[v]){seen[v]=1;out.push({l:label,v:v})}}
+  var pool=bookings.filter(function(b){return (!o.editIds||o.editIds.indexOf(b.id)<0)&&b.price>0}).sort(function(a,b){return a.from<b.from?1:-1});
+  if(p.length>=9){var a=pool.filter(function(b){return digits(b.phone)===p&&b.room===k})[0]||pool.filter(function(b){return digits(b.phone)===p})[0];if(a)add('同上次 '+num(a.price),a.price)}
+  var r=pool.filter(function(b){return b.room===k})[0];if(r)add('這間上次 '+num(r.price),r.price);
+  return out;
 }
 function refreshPriceRows(){
-  var o=app.order,p=pickedRooms();
-  document.getElementById('o-price').innerHTML=p.length?p.map(function(r,i){
-    return '<div style="display:flex;align-items:center;gap:10px;min-height:66px;'+(i?'border-top:1px solid #E4DED1':'')+'"><span style="width:6px;height:30px;border-radius:3px;background:'+rc(r)+'"></span><div style="flex:1;font-size:18px;font-weight:700">'+rname(r)+'</div>'+
-    '<input type="text" inputmode="numeric" placeholder="房價" aria-label="'+rname(r)+' 每晚房價" value="'+(o.price[r.k]||'')+'" data-in="price" data-k="'+r.k+'" style="width:104px;height:48px;text-align:right;border:1px solid #CFC7B5;border-radius:12px;background:#fff;padding:0 12px;font-size:18px;font-family:inherit;color:#2B2A27"><span class="muted">元</span></div>';
-  }).join(''):'<div class="muted" style="padding:20px 0">選了房間，這裡就會出現房價</div>';
+  var o=app.order,p=pickedRooms();if(!$i('o-price'))return;
+  $i('o-price').innerHTML=p.length?p.map(function(r,i){
+    var sg=priceSug(r.k);
+    return '<div style="'+(i?'border-top:1px solid #E4DED1;':'')+'padding:8px 0"><div style="display:flex;align-items:center;gap:10px;min-height:56px"><span style="width:6px;height:30px;border-radius:3px;background:'+rc(r)+'"></span><div style="flex:1;font-size:18px;font-weight:700">'+rname(r)+'</div>'+
+    '<input type="text" inputmode="numeric" placeholder="房價" aria-label="'+rname(r)+' 每晚房價" value="'+(o.price[r.k]||'')+'" data-in="price" data-k="'+r.k+'" style="width:104px;height:48px;text-align:right;border:1px solid #CFC7B5;border-radius:12px;background:#fff;padding:0 12px;font-size:18px;font-family:inherit;color:#2B2A27"><span class="muted">元</span></div>'+
+    (sg.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 6px 16px">'+sg.map(function(x){return '<button class="pchip" data-act="pp" data-k="'+r.k+'" data-v="'+x.v+'">'+x.l+'</button>'}).join('')+'</div>':'')+'</div>';
+  }).join(''):'<div class="muted" style="padding:20px 0">還沒選房間，請回上一步</div>';
 }
 function orderTotals(){
   var o=app.order,g=dayDiff(o.inD,o.outD),n=g>=1?g:1,per=pickedRooms().reduce(function(s,r){return s+(o.price[r.k]||0)},0);
   var total=per*n,dep=Number(digits(o.deposit))||0;return {n:n,total:total,dep:dep,bal:Math.max(0,total-dep)};
 }
 function refreshCalc(){
-  var t=orderTotals();
-  document.getElementById('o-calc').innerHTML=
+  if(!$i('o-calc'))return;var t=orderTotals();
+  $i('o-calc').innerHTML=
    '<div style="display:flex;justify-content:space-between;gap:8px"><span class="muted">房價合計（'+t.n+' 晚）</span><b>'+money(t.total)+'</b></div>'+
    '<div style="display:flex;justify-content:space-between"><span class="muted">已收訂金</span><b>'+money(t.dep)+'</b></div><div style="height:1px;background:#E4DED1"></div>'+
    '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:18px">尾款（入住時收）</b><span class="serif" style="font-size:26px;font-weight:600">'+money(t.bal)+'</span></div>';
 }
-function saveOrder(){
+function checkStep(s){
   var o=app.order,p=pickedRooms(),g=dayDiff(o.inD,o.outD);
-  if(!(g>=1)){toast('退房日要晚於入住日');return}
-  if(!p.length){toast('請先選房間');return}
-  if(!o.name.trim()){toast('請輸入訂房人姓名');return}
-  for(var i=0;i<p.length;i++){var r=p[i];
-    for(var d=o.inD;d<o.outD;d=addDay(d,1)){var c=find(r.k,d);if(c&&!(o.editIds&&o.editIds.indexOf(c.id)>=0)){toast(rname(r)+' 在 '+md(d)+' 已有訂單（'+c.who+'）');return}}
+  if(s===1){
+    if(!(g>=1)){toast('退房日要晚於入住日');return false}
+    if(!p.length){toast('請先選房間');return false}
+    for(var i=0;i<p.length;i++){var c=busyFor(p[i]);if(c){toast(rname(p[i])+' 這幾天已有訂單（'+(c.who||'已清除')+'）');return false}}
   }
+  if(s===2&&!o.name.trim()){toast('請輸入訂房人姓名');return false}
+  return true;
+}
+function findDup(){
+  var o=app.order,p=pickedRooms().map(function(r){return r.k}),now=Date.now();
+  return bookings.filter(function(b){return p.indexOf(b.room)>=0&&b.who===o.name.trim()&&digits(b.phone)===digits(o.phone)&&b.from===o.inD&&b.to===o.outD&&now-b.id<600000&&now-b.id>=0})[0]||null;
+}
+function showDup(b){
+  var m=Math.max(1,Math.round((Date.now()-b.id)/60000)),I=gInfo(b);
+  openDlg('<h2>好像剛剛存過了</h2><p>這筆和 '+m+' 分鐘前存的訂單一樣，要再存一筆嗎？</p><div class="same"><b>'+esc(b.who)+'</b>　'+esc(I.rooms)+'<br>'+md(b.from)+' – '+md(b.to)+'　共 '+I.nights+' 晚</div>'+
+   '<button class="primary" style="margin-top:16px" data-act="dupno">不用再存，回房況</button><button class="ghostbtn" style="margin-top:10px" data-act="dupgo">這是另一筆，還是要存</button>');
+}
+function openDlg(h){$dlg.innerHTML='<div class="shade"></div><div class="box" role="dialog" aria-modal="true">'+h+'</div>';$dlg.style.display='block'}
+function closeDlg(){$dlg.style.display='none';$dlg.innerHTML=''}
+function saveOrder(force){
+  var o=app.order,p=pickedRooms();
+  if(!checkStep(1)||!checkStep(2))return;
+  if(!o.editIds&&force!==true){var dup=findDup();if(dup){showDup(dup);return}}
   var t=orderTotals(),base=Date.now(),ids=o.editIds||[];
   if(ids.length){
     var keep={};
@@ -330,9 +481,9 @@ function saveOrder(){
     save(TKEY,tomb);
   } else
   p.forEach(function(r,i){var nb={id:base+i,room:r.k,who:o.name.trim(),phone:digits(o.phone),n:(o.guests[r.k]?o.guests[r.k].a+o.guests[r.k].c:2),from:o.inD,to:o.outD,price:o.price[r.k]||0,deposit:i===0?t.dep:0,src:o.src,note:o.note,checked:false};bookings.push(nb);touch(nb)});
-  persist();sync();
+  persist();sync();closeDlg();
   var parts=o.inD.split('-');app.y=+parts[0];app.m=+parts[1];app.sel=o.inD;
-  app.order=freshOrder(o.inD);app.tab='cal';render();toast((ids.length?'已更新訂單：':'已儲存訂單：')+esc(o.name.trim()));
+  app.order=freshOrder(o.inD);app.tab='cal';render();window.scrollTo(0,0);toast((ids.length?'已更新訂單：':'已儲存訂單：')+o.name.trim());
 }
 
 /* ---------- check-in ---------- */
@@ -451,24 +602,25 @@ function syncLabel(){
   if(syncMsg)return '離線或同步失敗：'+syncMsg+'（稍後自動重試）';
   var d=new Date(syncCfg.last);return syncCfg.last?'已同步 '+pad(d.getHours())+':'+pad(d.getMinutes()):'尚未同步';
 }
-function paintSync(){var el=document.getElementById('syncst');if(el)el.textContent=syncLabel()}
+function paintSync(){var el=document.getElementById('syncst');if(el)el.textContent=syncLabel();var ds=document.querySelectorAll('.sdot');for(var i=0;i<ds.length;i++){ds[i].style.background=syncColor();ds[i].title=syncLabel()}}
 function sync(){
   if(!syncCfg.url||!syncCfg.token||syncing||!navigator.onLine)return Promise.resolve();
   syncing=true;syncMsg='';paintSync();
-  var sentDirty=dirty.slice(),tombKeys=Object.keys(tomb),sentCi=ciq.slice();
+  var sentDirty=dirty.slice(),tombKeys=Object.keys(tomb),sentCi=ciq.slice(),sentFq=fq.slice();
   var rows=bookings.filter(function(b){return sentDirty.indexOf(b.id)>=0}).concat(tombKeys.map(function(k){return tomb[k]}));
-  return fetch(syncCfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:syncCfg.token,action:'sync',rows:rows,checkins:sentCi})})
+  return fetch(syncCfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:syncCfg.token,action:'sync',rows:rows,checkins:sentCi,keep:!!settings.keep,forget:sentFq})})
    .then(function(r){return r.json()}).then(function(res){
     if(!res.ok)throw new Error(res.error||'未知錯誤');
     dirty=dirty.filter(function(id){return sentDirty.indexOf(id)<0});save(DKEY,dirty);
     tombKeys.forEach(function(k){delete tomb[k]});save(TKEY,tomb);
     ciq=ciq.filter(function(c){return sentCi.indexOf(c)<0});save(QKEY,ciq);
+    fq=fq.filter(function(p){return sentFq.indexOf(p)<0});save(FQKEY,fq);
     var local={};bookings.forEach(function(b){local[b.id]=b});
     var out=[],seen={};
     res.rows.forEach(function(r){seen[r.id]=1;r.phone=fixPh(r.phone);if(tomb[r.id])return;if(dirty.indexOf(r.id)>=0&&local[r.id]){out.push(local[r.id]);return}if(!r.deleted)out.push(r)});
     bookings.forEach(function(b){if(!seen[b.id]&&dirty.indexOf(b.id)>=0)out.push(b)});
     bookings=out;persist();syncCfg.last=Date.now();save(SKEY,syncCfg);
-    if(app.tab==='cal'||app.tab==='rev'){var y=window.scrollY;render();window.scrollTo(0,y)}
+    if(app.tab==='cal'||app.tab==='rev'||app.tab==='detail'){var y=window.scrollY;render();window.scrollTo(0,y)}
   }).catch(function(e){syncMsg=(e&&e.message)||'連不上'}).then(function(){syncing=false;paintSync()});
 }
 function viewSettings(){
@@ -478,7 +630,8 @@ function viewSettings(){
    '<div><label class="lbl" for="s-token">密碼</label><input id="s-token" class="inp" type="text" autocapitalize="off" autocomplete="off" placeholder="與試算表指令碼裡設定的密碼相同" value="'+esc(sd.token)+'" data-in="s.token"></div>'+
    '<button class="primary" data-act="ssave">儲存並同步</button>'+
    '<div class="card" id="syncst" style="font-size:16px">'+esc(syncLabel())+'</div>'+
-   '<div class="card muted" style="font-size:14px;line-height:1.6">旅客登記資料依「民宿管理辦法」第 28 條保存 6 個月，期限到了會自動清除姓名、電話、證件號碼等個資（試算表端需執行一次「啟用自動清除」，見說明）。訂單只留日期、房間、金額供營收統計。</div>'+
+   '<div class="card muted" style="font-size:14px;line-height:1.6">旅客登記資料依「民宿管理辦法」第 28 條保存 6 個月，期限到了會自動清除姓名、電話、證件號碼等個資（試算表端需執行一次「啟用自動清除」，見說明）。訂單預設只留日期、房間、金額供營收統計；若開啟下方「保留回流客名單」，會多留姓名與電話。</div>'+
+   keepCards()+
    '<button class="ghostbtn" data-act="reset">清除這支手機上的資料</button></div>';
 }
 /* ---------- events ---------- */
@@ -492,23 +645,33 @@ var act={
   mon:function(d){var m=app.m+Number(d.d),y=app.y;if(m<1){m=12;y--}if(m>12){m=1;y++}app.y=y;app.m=m;app.sel=ymd(y,m,1);render()},
   pick:function(d){app.sel=d.d;render()},
   reset:function(){if(!confirm('確定要清除所有訂單資料嗎？清除後無法復原。'))return;bookings=[];dirty=[];tomb={};ciq=[];save(DKEY,dirty);save(TKEY,tomb);save(QKEY,ciq);persist();app.tab='cal';app.order=freshOrder(TODAY);app.ci=null;app.checkId=null;app.sel=TODAY;render();toast(syncCfg.url?'已清除，下次同步會從試算表重新載入':'已清除所有資料')},
-  'new':function(d){var o=freshOrder(app.sel);o.rooms[d.k]=true;o.guests[d.k]={a:Math.min(2,room(d.k).cap),c:0};app.order=o;app.tab='order';render();window.scrollTo(0,0)},
+  'new':function(d){var o=freshOrder(app.sel);o.custom=app.sel!==TODAY;o.rooms[d.k]=true;o.guests[d.k]={a:Math.min(2,room(d.k).cap),c:0};app.order=o;app.tab='order';render();window.scrollTo(0,0)},
   checkin:function(d){app.checkId=Number(d.id);app.ci=null;app.tab='checkin';render();window.scrollTo(0,0)},
-  room:function(d){var o=app.order;if(o.rooms[d.k]){delete o.rooms[d.k];delete o.guests[d.k]}else{o.rooms[d.k]=true;o.guests[d.k]={a:Math.min(2,room(d.k).cap),c:0}}refreshRooms();refreshGuests();refreshPriceRows();refreshCalc()},
+  room:function(d){var o=app.order;if(o.rooms[d.k]){delete o.rooms[d.k];delete o.guests[d.k]}else{var bz=busyFor(room(d.k));if(bz){toast(rname(room(d.k))+' 這幾天已有訂單（'+(bz.who||'已清除')+'）');return}o.rooms[d.k]=true;o.guests[d.k]={a:Math.min(2,room(d.k).cap),c:0}}refreshRooms()},
   adj:function(d){var g=app.order.guests[d.k];if(!g)return;g[d.f]=Math.max(d.f==='a'?1:0,g[d.f]+Number(d.d));refreshGuests()},
   src:function(d){app.order.src=d.s;refreshSrc()},
-  save:saveOrder,
+  save:function(){saveOrder(false)},
+  next:function(){var o=app.order,s=o.step||1;if(!checkStep(s))return;o.step=Math.min(3,s+1);render();window.scrollTo(0,0)},
+  prev:function(){var o=app.order;o.step=Math.max(1,(o.step||1)-1);render();window.scrollTo(0,0)},
+  chip:function(d){var o=app.order;if(d.c==='today'){o.inD=TODAY;o.outD=addDay(TODAY,1);o.custom=false}else if(d.c==='wknd'){var f=wkndStart();o.inD=f;o.outD=addDay(f,2);o.custom=false}else{o.custom=true}refreshChips();refreshNights();refreshRooms()},
+  pp:function(d){app.order.price[d.k]=Number(d.v);refreshPriceRows();refreshCalc()},
+  dupno:function(){closeDlg();app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
+  dupgo:function(){closeDlg();saveOrder(true)},
+  undo:function(){var f=undoFn;hideSnack();if(f)f()},
+  detail:function(d){app.detailId=Number(d.id);app.tab='detail';render();window.scrollTo(0,0)},
+  paid:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var g=group(b),v=!g.some(function(x){return x.paid});g.forEach(function(x){x.paid=v;touch(x)});persist();sync();render()},
+  cancelgrp:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var nm=b.who;cancelGroup(group(b).map(function(x){return x.id}),nm);app.tab='cal';render();window.scrollTo(0,0)},
+  keep:function(){if(settings.keep){var cut=addDay(TODAY0(),-183);var n=bookings.filter(function(b){return b.to<cut&&(b.who||b.phone)}).length;if(!confirm('關閉後，超過 6 個月的訂單會立刻清除姓名和電話'+(n?'（目前有 '+n+' 筆）':'')+'，確定嗎？'))return}settings.keep=!settings.keep;save(STKEY,settings);purgeLocal();sync();var y=window.scrollY;render();window.scrollTo(0,y);toast(settings.keep?'已開啟：保留回流客名單':'已關閉：6 個月後清除姓名電話')},
+  forget:function(){var m=forgetMatches();if(!m.length)return;var p=digits(app.fp);if(!confirm('確定刪除「'+(m[0].who||'這位旅客')+'」所有訂單上的姓名、電話、備註，以及登記資料嗎？無法復原。'))return;m.forEach(function(b){b.who='';b.phone='';b.note='';touch(b)});ciq=ciq.filter(function(c){return digits(c.phone)!==p});save(QKEY,ciq);if(fq.indexOf(p)<0)fq.push(p);save(FQKEY,fq);persist();app.fp='';sync();var y=window.scrollY;render();window.scrollTo(0,y);toast('已刪除 '+m.length+' 筆訂單上的個人資料')},
   edit:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var g=group(b),o=freshOrder(b.from);o.outD=b.to;o.name=b.who;o.phone=b.phone;o.src=b.src||o.src;o.note=(g.filter(function(x){return x.note})[0]||{note:''}).note;var dp=g.reduce(function(s,x){return s+(x.deposit||0)},0);o.deposit=dp?String(dp):'';g.forEach(function(x){o.rooms[x.room]=true;o.guests[x.room]={a:Math.max(1,x.n),c:0};o.price[x.room]=x.price||0});o.editIds=g.map(function(x){return x.id});app.order=o;app.tab='order';render();window.scrollTo(0,0)},
   canceledit:function(){app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
-  delorder:function(){var ids=app.order.editIds||[];if(!ids.length)return;if(!confirm('確定要取消「'+(app.order.name||'')+'」這筆訂單嗎？'))return;ids.forEach(function(id){tomb[id]={id:id,deleted:true,updatedAt:Date.now()}});bookings=bookings.filter(function(x){return ids.indexOf(x.id)<0});save(TKEY,tomb);persist();app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0);toast('已取消訂單');sync()},
+  delorder:function(){var ids=app.order.editIds||[];if(!ids.length)return;var nm=app.order.name;cancelGroup(ids,nm);app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
   sort:function(d){app.sort=d.s;render()},
   'export':exportCsv,
   scan:function(){document.getElementById('scan').click()},
   addcomp:function(){app.ci.comps.push({name:'',idno:'',by:'',bm:'',bd:''});var y=window.scrollY;render();window.scrollTo(0,y)},
   delcomp:function(d){app.ci.comps.splice(Number(d.i),1);var y=window.scrollY;render();window.scrollTo(0,y)},
-  cancel:function(){var b=currentBooking();if(!b)return;if(!confirm('確定要取消「'+(b.who||'')+'」這筆訂單嗎？'))return;
-    group(b).forEach(function(x){bookings=bookings.filter(function(y){return y.id!==x.id});tomb[x.id]={id:x.id,deleted:true,updatedAt:Date.now()}});
-    save(TKEY,tomb);persist();app.ci=null;app.checkId=null;app.tab='cal';render();window.scrollTo(0,0);toast('已取消訂單');sync()},
+  cancel:function(){var b=currentBooking();if(!b)return;var nm=b.who;cancelGroup(group(b).map(function(x){return x.id}),nm);app.ci=null;app.checkId=null;app.tab='cal';render();window.scrollTo(0,0)},
   ssave:function(){var sd=app.sd||{};syncCfg.url=(sd.url||'').trim();syncCfg.token=(sd.token||'').trim();syncCfg.last=0;save(SKEY,syncCfg);syncMsg='';paintSync();toast(syncCfg.url?'已儲存，開始同步':'已清除同步設定');
     if(syncCfg.url){bookings.forEach(function(b){if(dirty.indexOf(b.id)<0)dirty.push(b.id)});save(DKEY,dirty);sync().then(function(){paintSync();if(syncMsg)toast('同步失敗：'+syncMsg)})}},
   finish:function(){
@@ -524,10 +687,11 @@ var act={
 document.addEventListener('click',function(e){var t=e.target.closest('[data-act]');if(!t)return;var f=act[t.dataset.act];if(f)f(t.dataset,t,e)});
 document.addEventListener('input',function(e){
   var t=e.target.closest('[data-in]');if(!t)return;var k=t.dataset.in,v=t.value,o=app.order;
-  if(k==='inD'){o.inD=v;if(dayDiff(o.inD,o.outD)<1){o.outD=addDay(v,1);var oe=document.getElementById('o-out');if(oe)oe.value=o.outD}refreshNights();refreshCalc()}
+  if(k==='inD'){o.inD=v;if(dayDiff(o.inD,o.outD)<1){o.outD=addDay(v,1);var oe=document.getElementById('o-out');if(oe)oe.value=o.outD}refreshNights();refreshRooms();refreshCalc()}
   else if(k==='s.url'){(app.sd=app.sd||{}).url=v}
   else if(k==='s.token'){(app.sd=app.sd||{}).token=v}
-  else if(k==='outD'){o.outD=v;refreshNights();refreshCalc()}
+  else if(k==='fphone'){app.fp=v;refreshForget()}
+  else if(k==='outD'){o.outD=v;refreshNights();refreshRooms();refreshCalc()}
   else if(k==='name'){o.name=v}
   else if(k==='phone'){o.phone=v;refreshBack()}
   else if(k==='note'){o.note=v}
