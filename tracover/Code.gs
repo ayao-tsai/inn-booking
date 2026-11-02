@@ -30,6 +30,11 @@ function put_(sh, rec) {
   r.setValues([rec]);
 }
 
+function ph_(v) {
+  var s = String(v == null ? '' : v).replace(/\D/g, '');
+  return s && s.charAt(0) !== '0' ? '0' + s : s;
+}
+
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -68,7 +73,9 @@ function doPost(e) {
         rec[13] = String(r.updatedAt || Date.now());
       }
       if (id in index) {
-        bs.getRange(index[id], 1, 1, BOOK_HEAD.length).setValues([rec]);
+        var rg = bs.getRange(index[id], 1, 1, BOOK_HEAD.length);
+        rg.setNumberFormat('@');
+        rg.setValues([rec]);
         data[index[id] - 1] = rec;
       } else {
         put_(bs, rec);
@@ -114,7 +121,7 @@ function toRow_(r) {
 
 function fromRow_(v) {
   return {
-    id: Number(v[0]), room: v[1], who: v[2], phone: String(v[3]), n: Number(v[4]) || 0,
+    id: Number(v[0]), room: v[1], who: v[2], phone: ph_(v[3]), n: Number(v[4]) || 0,
     from: d_(v[5]), to: d_(v[6]), price: Number(v[7]) || 0, deposit: Number(v[8]) || 0,
     src: v[9], note: v[10], checked: v[11] === '1' || v[11] === 1, deleted: v[12] === '1' || v[12] === 1,
     updatedAt: Number(v[13]) || 0
