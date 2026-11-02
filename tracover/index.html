@@ -208,7 +208,7 @@ function hdrPlain(title){
 function render(){
   renderNav();
   if(app.tab==='cal'){$head.innerHTML=hdrMonth(NAMEH+'　房況');$view.innerHTML=viewCal()}
-  else if(app.tab==='order'){$head.innerHTML=hdrPlain('新增訂單');$view.innerHTML=viewOrder();refreshOrder()}
+  else if(app.tab==='order'){$head.innerHTML=hdrPlain(app.order.editIds?'編輯訂單':'新增訂單');$view.innerHTML=viewOrder();refreshOrder()}
   else if(app.tab==='checkin'){$head.innerHTML=hdrPlain('入住登記');$view.innerHTML=viewCheckin();refreshCi()}
   else if(app.tab==='settings'){$head.innerHTML=hdrPlain('同步設定');$view.innerHTML=viewSettings()}
   else {$head.innerHTML=hdrMonth(NAMEH+'　營收（含已預訂）');$view.innerHTML=viewRev()}
@@ -232,7 +232,7 @@ function viewCal(){
   function rows(list){return list.map(function(r){
     var b=find(r.k,app.sel),bk=b?backInfo(b.phone,b.from,b.id):null;
     return '<div class="row"><span class="bar" style="background:'+rc(r)+'"></span><div class="no" style="width:'+(r.label?'92px':'64px')+'"><b>'+(r.label?r.label+' ':'')+r.no+'</b><span>'+r.cap+' 人房</span></div>'+
-      '<div class="who"><div><span>'+(b?esc(b.who||'（已清除）')+' · '+b.n+' 人':'空房')+'</span>'+(bk?'<span class="back back-pill">回流</span>':'')+'</div><div class="muted" style="font-size:14px">'+(b?md(b.from)+' – '+md(b.to):'')+'</div></div>'+
+      '<div class="who"><div><span>'+(b?esc(b.who||'（已清除）')+' · '+b.n+' 人':'空房')+'</span>'+(bk?'<span class="back back-pill">回流</span>':'')+'</div><div class="muted" style="font-size:14px">'+(b?md(b.from)+' – '+md(b.to):'')+'</div>'+(b?'<button class="linkbtn" style="padding:6px 0;font-size:14px;color:#1A72A6;text-align:left" data-act="edit" data-id="'+b.id+'">編輯／取消訂單</button>':'')+'</div>'+
       (b?'<button class="pill '+(b.checked?'done':'dark')+'" data-act="checkin" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>':'<button class="pill ghost" data-act="new" data-k="'+r.k+'">＋ 新增</button>')+'</div>';
   }).join('')}
   return '<div class="wk"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>'+
@@ -260,7 +260,7 @@ function viewOrder(){
   '<div><label class="lbl" for="o-dep">已收訂金</label><div style="display:flex;align-items:center;gap:10px"><input id="o-dep" class="inp" type="text" inputmode="numeric" placeholder="0" value="'+esc(o.deposit)+'" data-in="deposit"><span class="muted" style="font-size:18px">元</span></div></div>'+
   '<div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:16px" id="o-calc"></div>'+
   '<div><label class="lbl" for="o-note">備註</label><textarea id="o-note" class="inp" rows="3" placeholder="例：晚上 8 點才到、要加床" data-in="note">'+esc(o.note)+'</textarea></div>'+
-  '<button class="primary" data-act="save">儲存訂單</button></div>';
+  '<button class="primary" data-act="save">'+(o.editIds?'儲存修改':'儲存訂單')+'</button>'+(o.editIds?'<button class="ghostbtn" data-act="canceledit">不改了，回房況</button><button class="ghostbtn" style="color:#B4521F;border-color:#B4521F" data-act="delorder">取消這筆訂單</button>':'')+'</div>';
 }
 function refreshOrder(){refreshNights();refreshRooms();refreshGuests();refreshBack();refreshSrc();refreshPriceRows();refreshCalc()}
 function refreshNights(){var o=app.order,g=dayDiff(o.inD,o.outD);document.getElementById('o-nights').textContent=(g>=1)?'共 '+g+' 晚':'退房日要晚於入住日'}
@@ -283,7 +283,7 @@ function refreshGuests(){
   sum.textContent='已選 '+p.length+' 間，共 '+tot+' 人';sum.style.color='#2B2A27';
 }
 function refreshBack(){
-  var o=app.order,bk=backInfo(o.phone,null,null),el=document.getElementById('o-back');
+  var o=app.order,bk=backInfo(o.phone,o.editIds?o.inD:null,null),el=document.getElementById('o-back');
   el.innerHTML=bk?'<div class="back" style="margin-top:10px;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px">'+ICON.again+'<div><div style="font-size:18px;font-weight:700">回流客・第 '+bk.times+' 次住宿</div><div style="font-size:14px">上次 '+md(bk.last.from)+' – '+md(bk.last.to)+'　'+rname(room(bk.last.room))+'</div></div></div>':'';
 }
 function refreshSrc(){
@@ -314,13 +314,24 @@ function saveOrder(){
   if(!p.length){toast('請先選房間');return}
   if(!o.name.trim()){toast('請輸入訂房人姓名');return}
   for(var i=0;i<p.length;i++){var r=p[i];
-    for(var d=o.inD;d<o.outD;d=addDay(d,1)){var c=find(r.k,d);if(c){toast(rname(r)+' 在 '+md(d)+' 已有訂單（'+c.who+'）');return}}
+    for(var d=o.inD;d<o.outD;d=addDay(d,1)){var c=find(r.k,d);if(c&&!(o.editIds&&o.editIds.indexOf(c.id)>=0)){toast(rname(r)+' 在 '+md(d)+' 已有訂單（'+c.who+'）');return}}
   }
-  var t=orderTotals(),base=Date.now();
+  var t=orderTotals(),base=Date.now(),ids=o.editIds||[];
+  if(ids.length){
+    var keep={};
+    p.forEach(function(r,i){
+      var old=bookings.filter(function(x){return ids.indexOf(x.id)>=0&&x.room===r.k})[0],gn=o.guests[r.k]?o.guests[r.k].a+o.guests[r.k].c:2;
+      if(old){old.who=o.name.trim();old.phone=digits(o.phone);old.n=gn;old.from=o.inD;old.to=o.outD;old.price=o.price[r.k]||0;old.deposit=i===0?t.dep:0;old.src=o.src;old.note=o.note;touch(old);keep[old.id]=1}
+      else{var nb2={id:base+i,room:r.k,who:o.name.trim(),phone:digits(o.phone),n:gn,from:o.inD,to:o.outD,price:o.price[r.k]||0,deposit:i===0?t.dep:0,src:o.src,note:o.note,checked:false};bookings.push(nb2);touch(nb2);keep[nb2.id]=1}
+    });
+    ids.forEach(function(id){if(!keep[id]){tomb[id]={id:id,deleted:true,updatedAt:Date.now()}}});
+    bookings=bookings.filter(function(x){return ids.indexOf(x.id)<0||keep[x.id]});
+    save(TKEY,tomb);
+  } else
   p.forEach(function(r,i){var nb={id:base+i,room:r.k,who:o.name.trim(),phone:digits(o.phone),n:(o.guests[r.k]?o.guests[r.k].a+o.guests[r.k].c:2),from:o.inD,to:o.outD,price:o.price[r.k]||0,deposit:i===0?t.dep:0,src:o.src,note:o.note,checked:false};bookings.push(nb);touch(nb)});
   persist();sync();
   var parts=o.inD.split('-');app.y=+parts[0];app.m=+parts[1];app.sel=o.inD;
-  app.order=freshOrder(o.inD);app.tab='cal';render();toast('已儲存訂單：'+esc(o.name.trim()));
+  app.order=freshOrder(o.inD);app.tab='cal';render();toast((ids.length?'已更新訂單：':'已儲存訂單：')+esc(o.name.trim()));
 }
 
 /* ---------- check-in ---------- */
@@ -476,7 +487,7 @@ function setPath(path,val){
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
 var act={
-  tab:function(d){app.tab=d.t;render();window.scrollTo(0,0)},
+  tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
   mon:function(d){var m=app.m+Number(d.d),y=app.y;if(m<1){m=12;y--}if(m>12){m=1;y++}app.y=y;app.m=m;app.sel=ymd(y,m,1);render()},
   pick:function(d){app.sel=d.d;render()},
   reset:function(){if(!confirm('確定要清除所有訂單資料嗎？清除後無法復原。'))return;bookings=[];dirty=[];tomb={};ciq=[];save(DKEY,dirty);save(TKEY,tomb);save(QKEY,ciq);persist();app.tab='cal';app.order=freshOrder(TODAY);app.ci=null;app.checkId=null;app.sel=TODAY;render();toast(syncCfg.url?'已清除，下次同步會從試算表重新載入':'已清除所有資料')},
@@ -486,6 +497,9 @@ var act={
   adj:function(d){var g=app.order.guests[d.k];if(!g)return;g[d.f]=Math.max(d.f==='a'?1:0,g[d.f]+Number(d.d));refreshGuests()},
   src:function(d){app.order.src=d.s;refreshSrc()},
   save:saveOrder,
+  edit:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var g=group(b),o=freshOrder(b.from);o.outD=b.to;o.name=b.who;o.phone=b.phone;o.src=b.src||o.src;o.note=(g.filter(function(x){return x.note})[0]||{note:''}).note;var dp=g.reduce(function(s,x){return s+(x.deposit||0)},0);o.deposit=dp?String(dp):'';g.forEach(function(x){o.rooms[x.room]=true;o.guests[x.room]={a:Math.max(1,x.n),c:0};o.price[x.room]=x.price||0});o.editIds=g.map(function(x){return x.id});app.order=o;app.tab='order';render();window.scrollTo(0,0)},
+  canceledit:function(){app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
+  delorder:function(){var ids=app.order.editIds||[];if(!ids.length)return;if(!confirm('確定要取消「'+(app.order.name||'')+'」這筆訂單嗎？'))return;ids.forEach(function(id){tomb[id]={id:id,deleted:true,updatedAt:Date.now()}});bookings=bookings.filter(function(x){return ids.indexOf(x.id)<0});save(TKEY,tomb);persist();app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0);toast('已取消訂單');sync()},
   sort:function(d){app.sort=d.s;render()},
   'export':exportCsv,
   scan:function(){document.getElementById('scan').click()},

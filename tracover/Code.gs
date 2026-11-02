@@ -20,6 +20,16 @@ function sheet_(name, head) {
   return s;
 }
 
+function d_(v) {
+  return v instanceof Date ? Utilities.formatDate(v, 'Asia/Taipei', 'yyyy-MM-dd') : String(v);
+}
+
+function put_(sh, rec) {
+  var r = sh.getRange(sh.getLastRow() + 1, 1, 1, rec.length);
+  r.setNumberFormat('@');
+  r.setValues([rec]);
+}
+
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -61,7 +71,7 @@ function doPost(e) {
         bs.getRange(index[id], 1, 1, BOOK_HEAD.length).setValues([rec]);
         data[index[id] - 1] = rec;
       } else {
-        bs.appendRow(rec);
+        put_(bs, rec);
         data.push(rec);
         index[id] = data.length;
       }
@@ -75,7 +85,7 @@ function doPost(e) {
     (body.checkins || []).forEach(function (c) {
       var key = c.bookingId + '|' + c.ts;
       if (seen[key]) return;
-      cs.appendRow([
+      put_(cs, [
         String(c.bookingId), String(c.ts), c.checkout || '', c.name || '', c.idno || '', c.birth || '',
         c.phone || '', c.plate || '', c.addr || '', c.note || '', JSON.stringify(c.companions || []), c.rooms || ''
       ]);
@@ -105,7 +115,7 @@ function toRow_(r) {
 function fromRow_(v) {
   return {
     id: Number(v[0]), room: v[1], who: v[2], phone: String(v[3]), n: Number(v[4]) || 0,
-    from: String(v[5]), to: String(v[6]), price: Number(v[7]) || 0, deposit: Number(v[8]) || 0,
+    from: d_(v[5]), to: d_(v[6]), price: Number(v[7]) || 0, deposit: Number(v[8]) || 0,
     src: v[9], note: v[10], checked: v[11] === '1' || v[11] === 1, deleted: v[12] === '1' || v[12] === 1,
     updatedAt: Number(v[13]) || 0
   };
@@ -117,12 +127,12 @@ function purgeOld() {
   var cs = sheet_('入住登記', CI_HEAD);
   var cd = cs.getDataRange().getValues();
   for (var i = cd.length - 1; i >= 1; i--) {
-    if (String(cd[i][2]) && String(cd[i][2]) < cut) cs.deleteRow(i + 1);
+    if (d_(cd[i][2]) && d_(cd[i][2]) < cut) cs.deleteRow(i + 1);
   }
   var bs = sheet_('訂單', BOOK_HEAD);
   var bd = bs.getDataRange().getValues();
   for (var j = bd.length - 1; j >= 1; j--) {
-    var to = String(bd[j][6]);
+    var to = d_(bd[j][6]);
     if (to && to < cut) {
       if (bd[j][12] === '1') { bs.deleteRow(j + 1); continue; } // 已取消的舊訂單直接刪
       if (bd[j][2] || bd[j][3] || bd[j][10]) {
