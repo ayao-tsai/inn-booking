@@ -157,6 +157,7 @@ function wday(iso){return WD[new Date(Date.parse(iso)).getUTCDay()]}
 function money(n){return 'NT$ '+Math.round(n).toLocaleString('en-US')}
 function num(n){return Math.round(n).toLocaleString('en-US')}
 function digits(s){return String(s||'').replace(/\D/g,'')}
+function fixPh(p){p=digits(p);return p&&p.charAt(0)!=='0'?'0'+p:p}
 function find(k,iso){return bookings.filter(function(b){return b.room===k&&b.from<=iso&&iso<b.to})[0]}
 function backInfo(phone,excludeFrom,excludeId){
   var p=digits(phone); if(p.length<9) return null;
@@ -464,7 +465,7 @@ function sync(){
     ciq=ciq.filter(function(c){return sentCi.indexOf(c)<0});save(QKEY,ciq);
     var local={};bookings.forEach(function(b){local[b.id]=b});
     var out=[],seen={};
-    res.rows.forEach(function(r){seen[r.id]=1;if(tomb[r.id])return;if(dirty.indexOf(r.id)>=0&&local[r.id]){out.push(local[r.id]);return}if(!r.deleted)out.push(r)});
+    res.rows.forEach(function(r){seen[r.id]=1;r.phone=fixPh(r.phone);if(tomb[r.id])return;if(dirty.indexOf(r.id)>=0&&local[r.id]){out.push(local[r.id]);return}if(!r.deleted)out.push(r)});
     bookings.forEach(function(b){if(!seen[b.id]&&dirty.indexOf(b.id)>=0)out.push(b)});
     bookings=out;persist();syncCfg.last=Date.now();save(SKEY,syncCfg);
     if(app.tab==='cal'||app.tab==='rev'){var y=window.scrollY;render();window.scrollTo(0,y)}
