@@ -289,7 +289,7 @@ function viewCal(){
     var b=find(r.k,app.sel),bk=b?backInfo(b.phone,b.from,b.id):null;
     return '<div class="row"><span class="bar" style="background:'+rc(r)+'"></span><div class="no" style="width:'+(r.label?'92px':'64px')+'"><b>'+(r.label?r.label+' ':'')+r.no+'</b><span>'+r.cap+' 人房</span></div>'+
       '<div class="who"><div><span>'+(b?esc(b.who||'（已清除）')+' · '+b.n+' 人':'空房')+'</span>'+(bk?'<span class="back back-pill">回流</span>':'')+'</div><div class="muted" style="font-size:14px">'+(b?md(b.from)+' – '+md(b.to):'')+'</div>'+(b?'<button class="linkbtn" style="padding:6px 0;font-size:14px;color:#1A72A6;text-align:left" data-act="edit" data-id="'+b.id+'">編輯／取消訂單</button>':'')+'</div>'+
-      (b?'<button class="pill '+(b.checked?'done':'dark')+'" data-act="checkin" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>':'<button class="pill ghost" data-act="new" data-k="'+r.k+'">＋ 新增</button>')+'</div>';
+      (b?'<button class="pill '+(b.checked?'done':'dark')+'" data-act="'+(b.checked?'detail':'checkin')+'" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>':'<button class="pill ghost" data-act="new" data-k="'+r.k+'">＋ 新增</button>')+'</div>';
   }).join('')}
   return '<div class="wk"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>'+
    '<div class="cal">'+cells+'</div>'+
@@ -335,7 +335,7 @@ function dayCard(){
   var sel=app.sel,ins=uniqGroups(bookings.filter(function(b){return b.from===sel})),outs=uniqGroups(bookings.filter(function(b){return b.to===sel}));
   var empty=ROOMS.filter(function(r){return !find(r.k,sel)});
   var none='<div class="muted" style="font-size:15px;padding:6px 0 4px">沒有</div>';
-  var inH=ins.map(function(b){return dayLine(b,'<button class="pill '+(b.checked?'done':'dark')+'" data-act="checkin" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>')}).join('')||none;
+  var inH=ins.map(function(b){return dayLine(b,'<button class="pill '+(b.checked?'done':'dark')+'" data-act="'+(b.checked?'detail':'checkin')+'" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>')}).join('')||none;
   var outH=outs.map(function(b){var I=gInfo(b);return dayLine(b,I.paid?'<span class="pill done">尾款已收</span>':(I.bal>0?'<span style="text-align:right;font-size:14px;line-height:1.3" class="muted">尾款<br><b style="color:#2B2A27;font-size:16px">'+money(I.bal)+'</b></span>':'<span class="muted" style="font-size:14px">無尾款</span>'))}).join('')||none;
   function rrow(r){
     var b=find(r.k,sel);
@@ -757,7 +757,7 @@ function setPath(path,val){
   if(p[0]==='ci'){c[p[1]]=val}
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
-var APPV='v16';
+var APPV='v18';
 var act={
   upd:function(){toast('更新中…');Promise.all([navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}):0,window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0]).catch(function(){}).then(function(){location.reload()})},
   tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
