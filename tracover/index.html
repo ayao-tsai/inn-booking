@@ -568,7 +568,7 @@ function viewCheckin(){
   '<div class="serif" style="font-size:20px;font-weight:600;letter-spacing:.04em;margin-bottom:-8px">住客資料</div>'+
   '<button class="ghostbtn" style="height:60px;border-radius:16px" data-act="scan">'+ICON.cam+'拍身分證帶入</button>'+
   '<div class="muted" style="margin-top:-12px;font-size:14px;text-align:center">只在這支手機上讀取，照片不會送出或存起來；讀不到就直接手動輸入</div>'+
-  (c.scanned?'<div class="alert" style="margin-top:-6px">已讀到姓名、證件號碼、生日，請對照證件核對（示範版：填入的是範例資料，沒有真的辨識）</div>':'')+
+  (c.ocrMsg?'<div class="alert" style="margin-top:-6px">'+esc(c.ocrMsg)+'</div>':'')+
   '<div><label class="lbl" for="c-name">姓名</label><input id="c-name" class="inp" type="text" value="'+esc(c.name)+'" data-in="ci.name"></div>'+
   '<div><label class="lbl" for="c-id">身分證／護照號碼</label><input id="c-id" class="inp" type="text" autocapitalize="characters" placeholder="請旅客填寫或拍照" value="'+esc(c.idno)+'" data-in="ci.idno"><div id="c-idmsg" style="margin-top:6px;font-size:14px"></div></div>'+
   '<div><label class="lbl">生日（民國）</label><div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:8px">'+bdField('ci.by',[c.by,'74','出生年'])+bdField('ci.bm',[c.bm,'6','出生月'])+bdField('ci.bd',[c.bd,'15','出生日'])+'</div><div id="c-ad" class="muted" style="margin-top:6px;font-size:14px"></div></div>'+
@@ -592,10 +592,71 @@ function refreshCi(){
   var a=document.getElementById('c-ad');
   if(a){var y=adYear(c.by);a.textContent=y?'西元 '+y+' 年':''}
 }
-function fillScan(){
-  var c=app.ci;if(!c)return;
-  c.name=c.name||'王大明';c.idno='A123456789';c.by='74';c.bm='6';c.bd='15';c.scanned=true;
-  var y=window.scrollY;render();window.scrollTo(0,y);
+/* ---------- 證件辨識（在手機上離線辨識，照片不送出） ---------- */
+var OCRBASE=new URL('ocr/',location.href).href,ocrBusy=false;
+function loadScript(src){return new Promise(function(ok,no){if(window.Tesseract)return ok();var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){no(new Error('辨識程式載入失敗，請確認網路後再試'))};document.head.appendChild(s)})}
+function prepImage(file){
+  return (window.createImageBitmap?createImageBitmap(file,{imageOrientation:'from-image'}).catch(function(){return createImageBitmap(file)}):Promise.reject()).catch(function(){
+    return new Promise(function(ok,no){var im=new Image(),u=URL.createObjectURL(file);im.onload=function(){URL.revokeObjectURL(u);ok(im)};im.onerror=no;im.src=u})
+  }).then(function(src){
+    var w=src.width||src.naturalWidth,h=src.height||src.naturalHeight,k=Math.min(1,1800/Math.max(w,h)),cv=document.createElement('canvas');
+    cv.width=Math.round(w*k);cv.height=Math.round(h*k);var cx=cv.getContext('2d');cx.drawImage(src,0,0,cv.width,cv.height);
+    var im=cx.getImageData(0,0,cv.width,cv.height),d=im.data,hist=new Array(256).fill(0),i,g;
+    for(i=0;i<d.length;i+=4){g=Math.round(d[i]*.299+d[i+1]*.587+d[i+2]*.114);d[i]=d[i+1]=d[i+2]=g;hist[g]++}
+    var tot=cv.width*cv.height,lo=0,hi=255,a=0;
+    for(i=0;i<256;i++){a+=hist[i];if(a>tot*.02){lo=i;break}}a=0;
+    for(i=255;i>=0;i--){a+=hist[i];if(a>tot*.02){hi=i;break}}
+    var sc=hi>lo+20?255/(hi-lo):1;
+    for(i=0;i<d.length;i+=4){g=Math.max(0,Math.min(255,(d[i]-lo)*sc));d[i]=d[i+1]=d[i+2]=g}
+    cx.putImageData(im,0,0);return cv;
+  });
+}
+function fixIdTok(s){return s.toUpperCase().replace(/[|IL!]/g,'1').replace(/O/g,'0').replace(/S/g,'5').replace(/B/g,'8').replace(/Z/g,'2')}
+function findId(text){
+  var toks=(text.replace(/[一-鿿]/g,' ').match(/[A-Za-z][A-Za-z0-9|!]{8,12}/g)||[]),soft=null;
+  for(var t=0;t<toks.length;t++){
+    var tok=toks[t],first=tok.charAt(0).toUpperCase();
+    for(var s=0;s<=tok.length-10;s++){
+      var w=tok.slice(s,s+10),c=first===w.charAt(0).toUpperCase()?w.charAt(0).toUpperCase()+fixIdTok(w.slice(1)):null;
+      if(!c)c=w.charAt(0).toUpperCase()+fixIdTok(w.slice(1));
+      if(!/^[A-Z]/.test(c))continue;
+      var v=validTwId(c);if(v===true)return {id:c,ok:true};if(v===false&&!soft&&s===0)soft=c;
+    }
+  }
+  return soft?{id:soft,ok:false}:null;
+}
+function findBirth(text){
+  var t=text.replace(/\s+/g,''),m=/民國?(\d{2,3})年(\d{1,2})月(\d{1,2})/.exec(t)||/國(\d{2,3})\D{1,2}(\d{1,2})\D{1,2}(\d{1,2})/.exec(t)||/出?生\D{0,3}(\d{2,3})\D{1,2}(\d{1,2})\D{1,2}(\d{1,2})/.exec(t);
+  if(!m)return null;var y=+m[1],mo=+m[2],d=+m[3];
+  return (y>=1&&y<=115&&mo>=1&&mo<=12&&d>=1&&d<=31)?{by:String(y),bm:String(mo),bd:String(d)}:null;
+}
+function findName(text){var m=/姓\s*名\s*[:：]?\s*([一-鿿]{2,4})/.exec(text.replace(/[ \t]+/g,''));return m?m[1]:''}
+function runOcr(file){
+  var out={};
+  function mk(lang){return Tesseract.createWorker(lang,1,{workerPath:OCRBASE+'worker.min.js',corePath:OCRBASE,langPath:OCRBASE,gzip:true})}
+  return Promise.all([loadScript(OCRBASE+'tesseract.min.js'),prepImage(file)]).then(function(r){
+    var cv=r[1],w1;
+    return mk('chi_tra').then(function(w){w1=w;return w.recognize(cv)}).then(function(res){
+      var tx=res.data.text;out.birth=findBirth(tx);out.name=findName(tx);out.id=findId(tx);
+      return w1.terminate().then(function(){
+        if(out.id&&out.id.ok)return;
+        return mk('eng').then(function(w2){return w2.setParameters({tessedit_pageseg_mode:'11'}).then(function(){return w2.recognize(cv)}).then(function(r2){var id2=findId(r2.data.text);if(id2&&(!out.id||id2.ok))out.id=id2;return w2.terminate()})});
+      });
+    });
+  }).then(function(){return out});
+}
+function scanPhoto(file){
+  var c=app.ci;if(!c||ocrBusy)return;ocrBusy=true;
+  c.ocrMsg='辨識中…第一次使用要載入辨識程式（約 5 MB），請稍候';var y=window.scrollY;render();window.scrollTo(0,y);
+  runOcr(file).then(function(r){
+    var got=[],miss=[];
+    if(r.name){c.name=r.name;got.push('姓名')}else miss.push('姓名');
+    if(r.id){c.idno=r.id.id;got.push('證件號碼'+(r.id.ok?'':'（檢查碼不符，請核對）'))}else miss.push('證件號碼');
+    if(r.birth){c.by=r.birth.by;c.bm=r.birth.bm;c.bd=r.birth.bd;got.push('生日')}else miss.push('生日');
+    c.ocrMsg=got.length?('已讀到：'+got.join('、')+(miss.length?'；'+miss.join('、')+'沒讀到，請手動輸入':'')+'。請對照證件核對'):'沒讀到任何資料，請放平證件、避開反光再拍一次，或直接手動輸入';
+  }).catch(function(e){c.ocrMsg='辨識失敗：'+((e&&e.message)||'請手動輸入')}).then(function(){
+    ocrBusy=false;if(app.ci===c&&app.tab==='checkin'){var y2=window.scrollY;render();window.scrollTo(0,y2)}
+  });
 }
 
 /* ---------- revenue ---------- */
@@ -765,7 +826,7 @@ document.addEventListener('input',function(e){
   else if(k==='price'){o.price[t.dataset.k]=Number(digits(v))||0;refreshCalc()}
   else if(k.indexOf('ci.')===0||k.indexOf('comp.')===0){setPath(k,v);if(k.indexOf('ci.')===0)refreshCi()}
 });
-document.getElementById('scan').addEventListener('change',function(e){if(e.target.files&&e.target.files.length){fillScan()}e.target.value=''});
+document.getElementById('scan').addEventListener('change',function(e){var pf=e.target.files&&e.target.files[0];if(pf){scanPhoto(pf)}e.target.value=''});
 
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){navigator.serviceWorker.register('sw.js').catch(function(){})}
 purgeLocal();render();
