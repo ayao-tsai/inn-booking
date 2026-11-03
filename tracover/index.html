@@ -745,6 +745,7 @@ function viewSettings(){
    '<div><label class="lbl" for="s-url">同步網址</label><input id="s-url" class="inp" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="'+esc(sd.url)+'" data-in="s.url"></div>'+
    '<div><label class="lbl" for="s-token">密碼</label><input id="s-token" class="inp" type="text" autocapitalize="off" autocomplete="off" placeholder="與試算表指令碼裡設定的密碼相同" value="'+esc(sd.token)+'" data-in="s.token"></div>'+
    '<button class="primary" data-act="ssave">儲存並同步</button>'+
+   '<div class="card" style="line-height:1.6"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b style="font-size:17px">App 版本 '+APPV+'</b><div class="muted" style="font-size:14px;margin-top:4px">看不到新功能時，按右邊更新；訂單資料不會被清掉。</div></div><button class="ghostbtn" style="width:auto;padding:0 16px" data-act="upd">更新</button></div></div>'+
    '<div class="card" id="syncst" style="font-size:16px">'+esc(syncLabel())+'</div>'+
    '<div class="card muted" style="font-size:14px;line-height:1.6">旅客登記資料依「民宿管理辦法」第 28 條保存 6 個月，期限到了會自動清除姓名、電話、證件號碼等個資（試算表端需執行一次「啟用自動清除」，見說明）。訂單預設只留日期、房間、金額供營收統計；若開啟下方「保留回流客名單」，會多留姓名與電話。</div>'+
    keepCards()+
@@ -756,7 +757,9 @@ function setPath(path,val){
   if(p[0]==='ci'){c[p[1]]=val}
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
+var APPV='v16';
 var act={
+  upd:function(){toast('更新中…');Promise.all([navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}):0,window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0]).catch(function(){}).then(function(){location.reload()})},
   tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
   mon:function(d){var m=app.m+Number(d.d),y=app.y;if(m<1){m=12;y--}if(m>12){m=1;y++}app.y=y;app.m=m;app.sel=ymd(y,m,1);render()},
   pick:function(d){app.sel=d.d;render()},
