@@ -171,9 +171,22 @@ function doPost(e) {
       seen[key] = 1;
     });
 
+    // ---- 入住登記：每個 bookingId 回傳最新一筆，讓每支手機都看得到 ----
+    var latest = {};
+    cs.getDataRange().getValues().slice(1).forEach(function (v) {
+      var id = String(v[0]);
+      if (!latest[id] || Number(v[1]) > Number(latest[id][1])) latest[id] = v;
+    });
+    var regs = Object.keys(latest).map(function (k) {
+      var v = latest[k], comp = [];
+      try { comp = JSON.parse(v[10] || '[]'); } catch (e) {}
+      return { bookingId: k, ts: Number(v[1]), checkout: d_(v[2]), name: String(v[3]), idno: String(v[4]), birth: String(v[5]),
+        phone: ph_(v[6]), plate: String(v[7]), addr: String(v[8]), note: String(v[9]), companions: comp, rooms: String(v[11]) };
+    });
+
     // ---- 回傳全部訂單 ----
     var rows = liveRows.concat(goneRows).map(fromRow_);
-    return out_({ ok: true, rows: rows });
+    return out_({ ok: true, rows: rows, regs: regs });
   } catch (err) {
     return out_({ ok: false, error: String(err) });
   } finally {
