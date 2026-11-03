@@ -144,7 +144,7 @@ nav button.on{font-weight:700;color:#2B2A27;border-top-color:#B4521F}
 (function(){
 'use strict';
 /*CFG*/
-var CFG={name:'循跡文旅',file:'循跡文旅',key:'tracover_data_v1',groups:[
+var CFG={name:'循跡文旅',file:'循跡文旅',key:'tracover_data_v1',msg:{"types": {"202": "藍徑雙人房", "301": "夕映單人房", "302": "山嵐四人房"}, "tpl": "歡迎來到循跡文旅 ～\n很開心能為您安排這次的住宿！以下是幫您保留的訂房資料：\n\n【 訂房明細 】\n📅 時間： \n{入住}入住，\n{退房}退房\n\n🏡 入住房型：\n{房型明細}\n計{合計}元\n(不含早餐)\n\n【 匯款資訊 】\n麻煩您在訂房確認後 2天內 幫我們匯入訂金（總額的50%，{訂金}元）唷！\n🏦 東港區漁會 新園分部 (523)\n▪ 戶名：蔡旻峻\n▪ 帳號：00129220279890\n\n【 如何抵達 】\n📍 民宿地址： 屏東縣新園鄉鹽埔村義仁路230號\n🗺️ 點我導航：\nhttps://maps.app.goo.gl/o2UMinGSzMxLHRZ2A?g_st=ipc\n我們離碼頭很近喔！\n• 去小琉球 (鹽琉線)：開車只要 3 分鐘\n• 去東港市區吃美食：開車約5分鐘\n\n【 溫馨小提醒 】\n🌍 環保愛地球： 我們不再提供牙刷、牙膏等一次性備品，請記得自行攜帶盥洗用具喔！（我們會準備毛巾給您）。\n\n🚫 住宿規範：\n為了給每位旅客最乾淨的空間，室內 全面禁菸 且 不可攜帶寵物，感謝您的體諒與配合。\n\n- 更多循跡介紹 👉 https://reurl.cc/W8y8Le\n\n期待與您相見！"},groups:[
  {id:'tc',name:'循跡文旅',flat:true,color:'#2B2A27',rooms:[['202',2,'#1A72A6','藍徑'],['301',4,'#B4521F','夕映'],['302',4,'#4F6347','山嵐']]}
 ]};
 /*ENDCFG*/
@@ -305,6 +305,13 @@ function gInfo(b){
     warn:(g.filter(function(x){return x.warn})[0]||{warn:''}).warn,
     rooms:g.map(function(x){var r=room(x.room);return r?rname(r):x.room}).join('、')};
 }
+function noticeText(b){
+  var M=CFG.msg;if(!M)return '';
+  var I=gInfo(b);
+  function roc(iso){return (+iso.slice(0,4)-1911)+'/'+iso.slice(5,7)+'/'+iso.slice(8,10)+'（'+'日一二三四五六'.charAt(new Date(Date.parse(iso)).getUTCDay())+'）'}
+  var lines=I.g.map(function(x){var r=room(x.room);return '•'+((r&&M.types[r.no])||(r?rname(r):x.room))+'｜$'+(x.price||0)+'元*'+I.nights+'晚'}).join('\n');
+  return M.tpl.replace('{入住}',roc(b.from)).replace('{退房}',roc(b.to)).replace('{房型明細}',lines).replace('{合計}',I.total).replace('{訂金}',Math.round(I.total/2));
+}
 function uniqGroups(list){var seen={},out=[];list.forEach(function(b){var k=[b.who,b.phone,b.from,b.to].join('|');if(!seen[k]){seen[k]=1;out.push(b)}});return out}
 function fmtPh(p){p=digits(p);return p.length===10?p.slice(0,4)+' '+p.slice(4,7)+' '+p.slice(7):p}
 function dayLine(b,right,sub){
@@ -343,6 +350,7 @@ function viewDetail(){
    '<div style="display:grid;grid-template-columns:72px minmax(0,1fr);row-gap:12px;margin-top:16px;align-items:center">'+kv('怎麼訂的',esc(b.src||'—'))+(b.bookedOn?kv('預訂日期',md(b.bookedOn)+'（'+b.bookedOn.slice(0,4)+'）'):'')+kv('日期',md(b.from)+' – '+md(b.to)+'　共 '+I.nights+' 晚')+kv('房間',esc(I.rooms))+kv('人數',I.n+' 人')+(note?kv('備註',esc(note)):'')+'</div></div>'+
    '<div class="card" style="display:flex;flex-direction:column;gap:8px;font-size:16px"><div style="display:flex;justify-content:space-between"><span class="muted">房價合計（'+I.nights+' 晚）</span><b>'+money(I.total)+'</b></div><div style="display:flex;justify-content:space-between"><span class="muted">已收訂金</span><b>'+money(I.dep)+'</b></div><div style="height:1px;background:#E4DED1"></div><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:18px">'+(I.paid?'尾款':'尾款（入住時收）')+'</b><span class="serif" style="font-size:26px;font-weight:600">'+money(I.bal)+'</span></div>'+
    (I.bal>0||I.paid?(I.paid?'<div class="alert" style="background:#E6EBE2;color:#34402F;font-weight:700;margin-top:4px">✓ 尾款已收　<button class="linkbtn" style="margin-left:auto" data-act="paid" data-id="'+b.id+'">取消標記</button></div>':'<button class="ghostbtn" style="margin-top:6px" data-act="paid" data-id="'+b.id+'">標記尾款已收</button>'):'')+'</div>'+
+   (CFG.msg?'<div class="card" style="display:flex;flex-direction:column;gap:10px"><button class="primary" style="margin-top:0" data-act="copymsg" data-id="'+b.id+'">複製住客通知</button><details><summary class="muted" style="font-size:15px;cursor:pointer">預覽訊息內容</summary><pre style="white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.6;margin:10px 0 0">'+esc(noticeText(b))+'</pre></details></div>':'')+
    (b.checked?'<div class="alert" style="background:#E6EBE2;color:#34402F;font-weight:700">✓ 已完成入住登記</div>':'<button class="primary" style="margin-top:0" data-act="checkin" data-id="'+b.id+'">登記入住</button>')+
    '<button class="ghostbtn" data-act="edit" data-id="'+b.id+'">編輯訂單</button>'+
    '<button class="ghostbtn" style="color:#B4521F;border-color:#B4521F" data-act="cancelgrp" data-id="'+b.id+'">取消這筆訂單</button></div>';
@@ -685,6 +693,9 @@ var act={
   dupgo:function(){closeDlg();saveOrder(true)},
   undo:function(){var f=undoFn;hideSnack();if(f)f()},
   detail:function(d){app.detailId=Number(d.id);app.tab='detail';render();window.scrollTo(0,0)},
+  copymsg:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var s=noticeText(b);
+    function fb(){var ta=document.createElement('textarea');ta.value=s;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast('已複製，可貼到 LINE / 訊息')}catch(e){toast('複製失敗，請展開預覽手動複製')}ta.remove()}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(s).then(function(){toast('已複製，可貼到 LINE / 訊息')},fb)}else fb()},
   paid:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var g=group(b),v=!g.some(function(x){return x.paid});g.forEach(function(x){x.paid=v;touch(x)});persist();sync();render()},
   cancelgrp:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var nm=b.who;cancelGroup(group(b).map(function(x){return x.id}),nm);app.tab='cal';render();window.scrollTo(0,0)},
   keep:function(){if(settings.keep){var cut=addDay(TODAY0(),-183);var n=bookings.filter(function(b){return b.to<cut&&(b.who||b.phone)}).length;if(!confirm('關閉後，超過 6 個月的訂單會立刻清除姓名和電話'+(n?'（目前有 '+n+' 筆）':'')+'，確定嗎？'))return}settings.keep=!settings.keep;save(STKEY,settings);purgeLocal();sync();var y=window.scrollY;render();window.scrollTo(0,y);toast(settings.keep?'已開啟：保留回流客名單':'已關閉：6 個月後清除姓名電話')},
