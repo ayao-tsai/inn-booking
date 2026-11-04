@@ -92,6 +92,7 @@ function doPost(e) {
     if (body.token !== token) return out_({ ok: false, error: '密碼不對' });
 
     if (body.action === 'summary') return out_(summary_(body.today));
+    if (body.action === 'changes') return out_(changes_(body.since));
 
     var bs = sheet_('訂單', BOOK_HEAD);
     var cs = sheet_('入住登記', CI_HEAD);
@@ -300,4 +301,19 @@ function enableAutoPurge() {
     if (t.getHandlerFunction() === 'purgeOld') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('purgeOld').timeBased().everyDays(1).atHour(3).create();
+}
+
+// ---- 唯讀異動清單：給生活指揮所用，從「歷程」撈出指定時間之後的新增 / 取消 / 修改 ----
+function changes_(sinceIn) {
+  var since = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(String(sinceIn || '')) ? String(sinceIn) : '1970-01-01 00:00:00';
+  var label = {}; ROOMS_.forEach(function (r) { label[r.k] = r.name; });
+  var sh = hist_(), out = [];
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, HIST_HEAD.length).getValues().forEach(function (v) {
+      var t = String(v[0]);
+      if (t < since || ['新增', '取消', '復原', '修改'].indexOf(v[1]) < 0) return;
+      out.push({ time: t, action: v[1], room: label[v[3]] || String(v[3]), who: String(v[4]), from: d_(v[6]), to: d_(v[7]), price: Number(v[8]) || 0, note: String(v[10] || '') });
+    });
+  }
+  return { ok: true, since: since, changes: out };
 }
