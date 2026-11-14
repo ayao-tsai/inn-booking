@@ -128,6 +128,55 @@ nav button.on{font-weight:700;color:#2B2A27;border-top-color:#B4521F}
 .sw[aria-checked=true]{background:#4A5A44}
 .sw[aria-checked=true] i{left:27px}
 .tg{display:inline-block;border-radius:12px;padding:4px 10px;font-size:13px;font-weight:700;margin:4px 6px 0 0}
+.nbrand,.nset{display:none}
+.kbd{display:none;font-size:12px;color:#8A8478;margin-top:8px}
+/* ---------- desktop ---------- */
+@media (min-width:1024px){
+  body{background:#E9E4D8}
+  #app{max-width:1440px;display:grid;grid-template-columns:232px minmax(0,1fr);grid-template-rows:auto 1fr;align-items:start;box-shadow:none;background:linear-gradient(to right,#FBF9F4 232px,#E4DED1 232px,#E4DED1 233px,#F4F1EA 233px);min-height:100vh}
+  nav{grid-column:1;grid-row:1/3;position:sticky;top:0;height:100vh;height:100dvh;flex-direction:column;align-items:stretch;gap:4px;border-top:0;border-right:1px solid #E4DED1;padding:28px 14px 20px;background:#FBF9F4}
+  nav button{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;height:52px;padding:0 16px;border-radius:12px;border-top:0;margin-top:0;font-size:16px}
+  nav button:hover{background:#F1ECE2;color:#2B2A27}
+  nav button.on{background:#EFE7DA;box-shadow:inset 3px 0 0 #B4521F}
+  .nbrand{display:block;padding:0 16px 22px;margin-bottom:10px;border-bottom:1px solid #E4DED1}
+  .nbrand b{display:block;font-family:'Noto Serif TC',serif;font-size:24px;font-weight:600;letter-spacing:.08em}
+  .nbrand span{display:block;font-size:13px;color:#5E5A52;margin-top:4px}
+  .nset{display:flex;margin-top:auto!important}
+  #head,#view{grid-column:2;min-width:0}
+  #head{grid-row:1}#view{grid-row:2;padding-bottom:40px}
+  .hdr{padding:28px 32px 10px;max-width:1180px;margin:0 auto}
+  #app:not([data-tab=cal]):not([data-tab=rev]) .hdr{max-width:824px}
+  .pad,.pad14{max-width:824px;margin:0 auto;width:100%;padding-left:32px;padding-right:32px}
+  .iconbtn:hover,.rnd:hover{background:#ECE6DA}
+  .primary:hover{background:#3D3B37}
+  .ghostbtn:hover,.pill.ghost:hover,.pchip:hover{background:#EFE9DD}
+  /* calendar: month on the left, the selected day on the right */
+  .calwrap{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;max-width:1180px;margin:0 auto;padding:0 32px}
+  .calwrap .wk,.calwrap .cal{padding:0;gap:8px}
+  .calwrap .wk{font-size:15px;padding-bottom:6px}
+  .calwrap .cell{height:clamp(76px,9vh,100px);border-radius:12px;gap:6px}
+  .calwrap .cell b{font-size:22px}
+  .calwrap .cell span{font-size:15px}
+  .calwrap .cell .hol{font-size:12px;top:6px;right:8px}
+  .calwrap .cell .wrn{font-size:13px;top:5px;left:7px}
+  .calwrap button.cell:not(.on):hover{border-color:#8A8478}
+  .calwrap .calkey{padding:16px 0 0!important}
+  .calside{max-width:560px}
+  .calside>.card{margin:0!important}
+  .row button.rowmain:hover{color:#1A72A6}
+  /* revenue: two columns */
+  #app[data-tab=rev] .pad14{max-width:1180px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+  #app[data-tab=rev] .pad14>.ghostbtn{grid-column:1/-1;justify-self:start;width:auto;padding:0 28px}
+  }
+@media (min-width:1200px){
+  .calwrap{grid-template-columns:minmax(0,1fr) 400px;gap:28px}
+  .calside{position:sticky;top:16px;max-width:none}
+}
+@media (min-width:1024px){
+  #toast{bottom:40px;left:calc(50% + 116px)}
+  #snack{bottom:40px;left:calc(50% + 116px)}
+  .kbd{display:inline-block}
+}
 </style>
 </head>
 <body>
@@ -229,7 +278,8 @@ var ICON={
 };
 
 /* ---------- state ---------- */
-function onePage(){return settings.flow?settings.flow==='one':CFG.flow==='one'}
+var WIDE=window.matchMedia?window.matchMedia('(min-width:1024px)'):{matches:false};
+function onePage(){return settings.flow?settings.flow==='one':(CFG.flow==='one'||WIDE.matches)}
 function freshOrder(inD){return {step:1,booked:TODAY,warn:'',inD:inD,outD:addDay(inD,1),rooms:{},guests:{},name:'',phone:'',src:'電話',price:{},deposit:'',note:''}}
 var T=new Date(),TODAY=ymd(T.getFullYear(),T.getMonth()+1,T.getDate());
 var syncing=false,syncMsg='';
@@ -244,7 +294,9 @@ function toast(msg){$toast.textContent=msg;$toast.className='show';clearTimeout(
 /* ---------- shell ---------- */
 var TABS=[['cal','房況','cal'],['order','新增訂單','order'],['checkin','入住登記','checkin'],['rev','營收','rev']];
 function renderNav(){
-  $nav.innerHTML=TABS.map(function(t){return '<button class="'+(app.tab===t[0]?'on':'')+'" data-act="tab" data-t="'+t[0]+'">'+ICON[t[2]]+t[1]+'</button>'}).join('');
+  document.getElementById('app').setAttribute('data-tab',app.tab);
+  $nav.innerHTML='<div class="nbrand"><b>'+esc(CFG.name)+'</b><span>訂房・入住・營收</span></div>'+TABS.map(function(t){return '<button class="'+(app.tab===t[0]?'on':'')+'" data-act="tab" data-t="'+t[0]+'">'+ICON[t[2]]+t[1]+'</button>'}).join('')+
+   '<button class="nset'+(app.tab==='settings'?' on':'')+'" data-act="tab" data-t="settings"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</button>';
 }
 function syncColor(){return !syncCfg.url?'#9A9486':syncing?'#D99A2B':syncMsg?'#B4521F':'#4A7A3F'}
 function dot(){return '<i class="sdot" style="background:'+syncColor()+'" title="'+esc(syncLabel())+'"></i>'}
@@ -290,12 +342,12 @@ function viewCal(){
       '<div class="who"><div><span>'+(b?esc(b.who||'（已清除）')+' · '+b.n+' 人':'空房')+'</span>'+(bk?'<span class="back back-pill">回流</span>':'')+'</div><div class="muted" style="font-size:14px">'+(b?md(b.from)+' – '+md(b.to):'')+'</div>'+(b?'<button class="linkbtn" style="padding:6px 0;font-size:14px;color:#1A72A6;text-align:left" data-act="edit" data-id="'+b.id+'">編輯／取消訂單</button>':'')+'</div>'+
       (b?'<button class="pill '+(b.checked?'done':'dark')+'" data-act="'+(b.checked?'detail':'checkin')+'" data-id="'+b.id+'">'+(b.checked?'已登記':'登記')+'</button>':'<button class="pill ghost" data-act="new" data-k="'+r.k+'">＋ 新增</button>')+'</div>';
   }).join('')}
-  return '<div class="wk"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>'+
+  return '<div class="calwrap"><div class="calmain"><div class="wk"><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div></div>'+
    '<div class="cal">'+cells+'</div>'+
-   '<div style="padding:12px 16px 0"><div class="muted" style="font-size:14px;text-align:center;margin-bottom:6px">顏色越深越滿，數字＝已住房數（共 '+ROOMS.length+' 間）；底部色條＝哪幾間有人；紅字＝週末，右上「休」＝國定假日，左上 ⚠＝當天入住有要注意的訂單</div><div class="legend">'+leg+'</div>'+
+   '<div class="calkey" style="padding:12px 16px 0"><div class="muted" style="font-size:14px;text-align:center;margin-bottom:6px">顏色越深越滿，數字＝已住房數（共 '+ROOMS.length+' 間）；底部色條＝哪幾間有人；紅字＝週末，右上「休」＝國定假日，左上 ⚠＝當天入住有要注意的訂單</div><div class="legend">'+leg+'</div>'+
    '<div class="muted" style="display:flex;justify-content:space-between;font-size:14px;margin-top:4px"><span>全空</span><span>全滿</span></div>'+
-   '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:14px">'+ROOMS.map(function(r){return '<span style="display:inline-flex;align-items:center;gap:6px"><i style="width:16px;height:6px;border-radius:2px;background:'+rc(r)+';display:inline-block"></i>'+rname(r)+'</span>'}).join('')+'</div></div>'+
-   dayCard()+
+   '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:14px">'+ROOMS.map(function(r){return '<span style="display:inline-flex;align-items:center;gap:6px"><i style="width:16px;height:6px;border-radius:2px;background:'+rc(r)+';display:inline-block"></i>'+rname(r)+'</span>'}).join('')+'</div><div class="kbd">鍵盤 ← → 切換月份</div></div></div>'+
+   '<div class="calside">'+dayCard()+'</div></div>'+
    '<div class="foot" style="padding-top:12px"><div id="syncst">'+esc(syncLabel())+'</div><button class="linkbtn" data-act="tab" data-t="settings">設定</button></div>';
 }
 
@@ -686,7 +738,7 @@ function setPath(path,val){
   if(p[0]==='ci'){c[p[1]]=val}
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
-var APPV='v19';
+var APPV='v20';
 var act={
   upd:function(){toast('更新中…');Promise.all([navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}):0,window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0]).catch(function(){}).then(function(){location.reload()})},
   tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
@@ -759,6 +811,12 @@ document.addEventListener('input',function(e){
 });
 
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){navigator.serviceWorker.register('sw.js').catch(function(){})}
+document.addEventListener('keydown',function(e){
+  if(e.altKey||e.ctrlKey||e.metaKey||document.getElementById('dlg').style.display==='block')return;
+  var tg=e.target&&e.target.tagName;if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT')return;
+  if((app.tab==='cal'||app.tab==='rev')&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();act.mon({d:e.key==='ArrowLeft'?'-1':'1'})}
+});
+if(WIDE.addEventListener)WIDE.addEventListener('change',function(){if(app.tab!=='order')render()});
 purgeLocal();render();
 sync();
 document.addEventListener('visibilitychange',function(){if(!document.hidden){purgeLocal();sync()}});
