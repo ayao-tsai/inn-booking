@@ -4,14 +4,15 @@
  * 資料表：「訂單」「入住登記」會自動建立。
  */
 var BOOK_HEAD = ['id', 'room', 'who', 'phone', 'n', 'from', 'to', 'price', 'deposit', 'src', 'note', 'checked', 'deleted', 'updatedAt', 'paid', 'bookedOn', 'warn'];
-var CI_HEAD = ['bookingId', 'ts', 'checkout', 'name', 'idno', 'birth', 'phone', 'plate', 'addr', 'note', 'companions', 'rooms'];
+var CI_HEAD = ['bookingId', 'ts', 'checkout', 'name', 'idno', 'birth', 'phone', 'plate', 'addr', 'note', 'companions', 'rooms', 'purpose', 'purposeNote', 'age', 'city', 'ci'];
 // 房間清單（唯讀「房況摘要」用）：k 要和 App 裡的房間代號一致
 var ROOMS_ = [
   { k: 'tc202', name: '藍徑 202', cap: 2 },
   { k: 'tc301', name: '夕映 301', cap: 4 },
   { k: 'tc302', name: '山嵐 302', cap: 4 }
 ];
-var KEEP_DAYS = 183; // 民宿管理辦法第 28 條：登記資料保存 6 個月
+var KEEP_DAYS = 183; // 民宿管理辦法第 28 條：登記資料保存 6 個月（證件號碼、生日在此後清除）
+var KEEP_REG_DAYS = 730; // 其他登記資料保存 2 年供回流客帶入；之後只留縣市、年齡、住宿目的做統計
 
 function sheet_(name, head) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -167,7 +168,8 @@ function doPost(e) {
       if (seen[key]) return;
       put_(cs, [
         String(c.bookingId), String(c.ts), c.checkout || '', c.name || '', c.idno || '', c.birth || '',
-        c.phone || '', c.plate || '', c.addr || '', c.note || '', JSON.stringify(c.companions || []), c.rooms || ''
+        c.phone || '', c.plate || '', c.addr || '', c.note || '', JSON.stringify(c.companions || []), c.rooms || '',
+        c.purpose || '', c.purposeNote || '', (c.age === undefined || c.age === null) ? '' : String(c.age), c.city || '', c.ci || ''
       ]);
       seen[key] = 1;
     });
@@ -182,7 +184,9 @@ function doPost(e) {
       var v = latest[k], comp = [];
       try { comp = JSON.parse(v[10] || '[]'); } catch (e) {}
       return { bookingId: k, ts: Number(v[1]), checkout: d_(v[2]), name: String(v[3]), idno: String(v[4]), birth: String(v[5]),
-        phone: ph_(v[6]), plate: String(v[7]), addr: String(v[8]), note: String(v[9]), companions: comp, rooms: String(v[11]) };
+        phone: v[6] ? ph_(v[6]) : '', plate: String(v[7]), addr: String(v[8]), note: String(v[9]), companions: comp, rooms: String(v[11]),
+        purpose: String(v[12] || ''), purposeNote: String(v[13] || ''), age: (v[14] === '' || v[14] === undefined) ? '' : Number(v[14]),
+        city: String(v[15] || ''), ci: v[16] ? d_(v[16]) : '' };
     });
 
     // ---- 回傳全部訂單 ----
@@ -268,10 +272,32 @@ function fromRow_(v) {
 function purgeOld() {
   var cut = Utilities.formatDate(new Date(Date.now() - KEEP_DAYS * 864e5), 'Asia/Taipei', 'yyyy-MM-dd');
   var keepRet = PropertiesService.getScriptProperties().getProperty('KEEP_RETURNING') === '1';
+  var cut2 = Utilities.formatDate(new Date(Date.now() - KEEP_REG_DAYS * 864e5), 'Asia/Taipei', 'yyyy-MM-dd');
   var cs = sheet_('入住登記', CI_HEAD);
   var cd = cs.getDataRange().getValues();
-  for (var i = cd.length - 1; i >= 1; i--) {
-    if (d_(cd[i][2]) && d_(cd[i][2]) < cut) cs.deleteRow(i + 1);
+  for (var i = 1; i < cd.length; i++) {
+    var v = cd[i], co = d_(v[2]);
+    if (!co || co >= cut) continue;
+    while (v.length < CI_HEAD.length) v.push('');
+    var ci = v[16] ? d_(v[16]) : '';
+    // 先算好統計用的年齡、縣市，再清個資
+    if (v[14] === '' && v[5]) { var ag = ageFrom_(String(v[5]), ci || co); if (ag !== '') v[14] = String(ag); }
+    if (!v[15] && v[8]) v[15] = cityOf_(String(v[8]));
+    var nv = v.slice();
+    nv[2] = co; nv[16] = ci;
+    if (co < cut2) {
+      // 超過 2 年：只留統計用欄位
+      [3, 4, 5, 6, 7, 8, 9, 11].forEach(function (c) { nv[c] = ''; });
+      nv[10] = '[]';
+    } else {
+      // 超過 6 個月：清證件號碼與生日（同行旅客也是），其他保留
+      nv[4] = ''; nv[5] = '';
+      var comp = []; try { comp = JSON.parse(v[10] || '[]'); } catch (e) {}
+      nv[10] = JSON.stringify(comp.map(function (p) { return { name: p.name || '', idno: '', birth: '' }; }));
+    }
+    if (nv.join('\u0001') !== cd[i].concat(new Array(Math.max(0, CI_HEAD.length - cd[i].length)).fill('')).join('\u0001')) {
+      cs.getRange(i + 1, 1, 1, CI_HEAD.length).setValues([nv.map(String)]);
+    }
   }
   // 訂單、已取消：姓名電話備註依設定清掉；已取消的舊單直接刪
   [sheet_('訂單', BOOK_HEAD), cs2_()].forEach(function (bs) {
@@ -293,6 +319,29 @@ function purgeOld() {
     var hday = String(hd[k][0]).slice(0, 10);
     if (hday && hday < cut) hs.deleteRow(k + 1);
   }
+}
+
+var CITIES_ = ['臺北市','新北市','桃園市','臺中市','臺南市','高雄市','基隆市','新竹市','嘉義市','新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義縣','屏東縣','宜蘭縣','花蓮縣','臺東縣','澎湖縣','金門縣','連江縣'];
+var OLDCITY_ = { '臺北縣': '新北市', '桃園縣': '桃園市', '臺中縣': '臺中市', '臺南縣': '臺南市', '高雄縣': '高雄市' };
+function cityOf_(addr) {
+  var a = String(addr || '').replace(/\s/g, '').replace(/台/g, '臺').replace(/^\d{3,6}/, '');
+  if (!a) return '';
+  for (var k in OLDCITY_) if (a.indexOf(k) === 0) return OLDCITY_[k];
+  for (var i = 0; i < CITIES_.length; i++) if (a.indexOf(CITIES_[i]) === 0) return CITIES_[i];
+  var two = a.slice(0, 2);
+  if (two !== '新竹' && two !== '嘉義') {
+    var hit = CITIES_.filter(function (c) { return c.slice(0, 2) === two; });
+    if (hit.length === 1) return hit[0];
+  }
+  if (/^[A-Za-z]/.test(a) || /(日本|香港|澳門|中國|馬來西亞|新加坡|美國|韓國|泰國|越南|菲律賓|印尼|國外)/.test(a)) return '國外';
+  return '';
+}
+function ageFrom_(birth, iso) {
+  var m = /民國\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日/.exec(birth || '');
+  if (!m || !iso) return '';
+  var Y = Number(m[1]) + 1911, a = Number(iso.slice(0, 4)) - Y, mm = Number(iso.slice(5, 7)), dd = Number(iso.slice(8, 10));
+  if (mm < Number(m[2]) || (mm === Number(m[2]) && dd < Number(m[3]))) a--;
+  return a >= 0 && a < 120 ? a : '';
 }
 
 /** 只要執行一次：啟用每天凌晨自動清除 */

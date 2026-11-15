@@ -145,7 +145,7 @@ nav button.on{font-weight:700;color:#2B2A27;border-top-color:#B4521F}
   #head,#view{grid-column:2;min-width:0}
   #head{grid-row:1}#view{grid-row:2;padding-bottom:40px}
   .hdr{padding:28px 32px 10px;max-width:1180px;margin:0 auto}
-  #app:not([data-tab=cal]):not([data-tab=rev]) .hdr{max-width:824px}
+  #app:not([data-tab=cal]):not([data-tab=rev]):not([data-tab=guests]) .hdr{max-width:824px}
   .pad,.pad14{max-width:824px;margin:0 auto;width:100%;padding-left:32px;padding-right:32px}
   .iconbtn:hover,.rnd:hover{background:#ECE6DA}
   .primary:hover{background:#3D3B37}
@@ -165,6 +165,8 @@ nav button.on{font-weight:700;color:#2B2A27;border-top-color:#B4521F}
   .calside>.card{margin:0!important}
   .row button.rowmain:hover{color:#1A72A6}
   /* revenue: two columns */
+  #app[data-tab=guests] .pad14{max-width:1180px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+  #app[data-tab=guests] .pad14>div:first-child{grid-column:1/-1}
   #app[data-tab=rev] .pad14{max-width:1180px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
   #app[data-tab=rev] .pad14>.ghostbtn{grid-column:1/-1;justify-self:start;width:auto;padding:0 28px}
   }
@@ -234,9 +236,36 @@ function purgeLocal(){
   var cut=addDay(TODAY0(),-183),ch=false,ch2=false;
   bookings.forEach(function(b){if(b.to<cut){if(!settings.keep&&(b.who||b.phone)){b.who='';b.phone='';ch=true}if(b.note){b.note='';ch=true}}});
   var n=ciq.length;ciq=ciq.filter(function(c){return c.checkout>=cut});if(ciq.length!==n){save(QKEY,ciq)}
-  Object.keys(regs).forEach(function(k){if(regs[k].checkout<cut){delete regs[k];ch2=true}});if(ch2)save(RKEY,regs);
+  var cut2=addDay(TODAY0(),-730);
+  Object.keys(regs).forEach(function(k){var r=regs[k];if(!r.checkout||r.checkout>=cut)return;
+    if(r.age==null){var ag=regAge(r,k);if(ag!=null){r.age=ag;ch2=true}}
+    if(!r.city&&r.addr){var cc=cityOf(r.addr);if(cc){r.city=cc;ch2=true}}
+    if(!r.ci){var dd=regDay(r,k);if(dd){r.ci=dd;ch2=true}}
+    if(r.checkout<cut2){if(!r.anon){regs[k]={ts:r.ts,checkout:r.checkout,ci:r.ci||'',age:r.age==null?null:r.age,city:r.city||'',purpose:r.purpose||'',purposeNote:r.purposeNote||'',anon:true};ch2=true}return}
+    if(!r.lite){r.idno='';r.by='';r.bm='';r.bd='';r.comps=(r.comps||[]).map(function(p){return {name:p.name||'',idno:'',by:'',bm:'',bd:''}});r.lite=true;ch2=true}
+  });if(ch2)save(RKEY,regs);
   if(ch)persist();
 }
+var CITIES=['臺北市','新北市','桃園市','臺中市','臺南市','高雄市','基隆市','新竹市','嘉義市','新竹縣','苗栗縣','彰化縣','南投縣','雲林縣','嘉義縣','屏東縣','宜蘭縣','花蓮縣','臺東縣','澎湖縣','金門縣','連江縣'];
+var OLDCITY={'臺北縣':'新北市','桃園縣':'桃園市','臺中縣':'臺中市','臺南縣':'臺南市','高雄縣':'高雄市'};
+function cityOf(addr){
+  var a=String(addr||'').replace(/\s/g,'').replace(/台/g,'臺').replace(/^\d{3,6}/,'');
+  if(!a)return '';
+  for(var k in OLDCITY)if(a.indexOf(k)===0)return OLDCITY[k];
+  for(var i=0;i<CITIES.length;i++)if(a.indexOf(CITIES[i])===0)return CITIES[i];
+  var short=CITIES.filter(function(c){return c!=='新竹縣'&&c!=='嘉義縣'&&a.indexOf(c.slice(0,2))===0});
+  if(short.length===1&&a.slice(0,2)!=='新竹'&&a.slice(0,2)!=='嘉義')return short[0];
+  if(/^[A-Za-z]/.test(a)||/(日本|香港|澳門|中國|馬來西亞|新加坡|美國|韓國|泰國|越南|菲律賓|印尼|國外)/.test(a))return '國外';
+  return '';
+}
+function ageAt(by,bm,bd,iso){
+  var y=Number(by),m=Number(bm),d=Number(bd);if(!(y>0&&m>0&&d>0))return null;
+  var Y=y+1911,a=Number(iso.slice(0,4))-Y,mm=Number(iso.slice(5,7)),dd=Number(iso.slice(8,10));
+  if(mm<m||(mm===m&&dd<d))a--;return a>=0&&a<120?a:null;
+}
+function regDay(r,id){var b=bookings.filter(function(x){return x.id===Number(id)})[0];return r.ci||(b&&b.from)||r.checkout||''}
+function regAge(r,id){return typeof r.age==='number'?r.age:ageAt(r.by,r.bm,r.bd,regDay(r,id)||r.checkout)}
+function regCity(r){return r.city||cityOf(r.addr)}
 function TODAY0(){var t=new Date();return ymd(t.getFullYear(),t.getMonth()+1,t.getDate())}
 
 /* ---------- helpers ---------- */
@@ -264,6 +293,7 @@ function backInfo(phone,excludeFrom,excludeId){
 }
 function group(b){return bookings.filter(function(x){return x.who===b.who&&x.from===b.from&&x.to===b.to&&x.phone===b.phone})}
 var ICON={
+ guests:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="16.8" cy="9.5" r="2.5"/><path d="M15.5 14.6c2.6-.3 4.6 1.3 5 4.4"/></svg>',
  cal:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
  order:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg>',
  checkin:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16" rx="2.5"/><path d="M9 4.5V3.5h6v1M8.5 12.5l2.5 2.5 4.5-5"/></svg>',
@@ -292,7 +322,7 @@ var $dlg=document.getElementById('dlg'), $snack=document.getElementById('snack')
 function toast(msg){$toast.textContent=msg;$toast.className='show';clearTimeout(toastT);toastT=setTimeout(function(){$toast.className=''},2600)}
 
 /* ---------- shell ---------- */
-var TABS=[['cal','房況','cal'],['order','新增訂單','order'],['checkin','入住登記','checkin'],['rev','營收','rev']];
+var TABS=[['cal','房況','cal'],['order','新增訂單','order'],['checkin','入住登記','checkin'],['rev','營收','rev'],['guests','來客','guests']];
 function renderNav(){
   document.getElementById('app').setAttribute('data-tab',app.tab);
   $nav.innerHTML='<div class="nbrand"><b>'+esc(CFG.name)+'</b><span>訂房・入住・營收</span></div>'+TABS.map(function(t){return '<button class="'+(app.tab===t[0]?'on':'')+'" data-act="tab" data-t="'+t[0]+'">'+ICON[t[2]]+t[1]+'</button>'}).join('')+
@@ -315,7 +345,40 @@ function render(){
   else if(app.tab==='checkin'){$head.innerHTML=hdrPlain('入住登記');$view.innerHTML=viewCheckin();refreshCi()}
   else if(app.tab==='detail'){$head.innerHTML=hdrPlain('訂單詳情');$view.innerHTML=viewDetail()}
   else if(app.tab==='settings'){$head.innerHTML=hdrPlain('設定');$view.innerHTML=viewSettings()}
+  else if(app.tab==='guests'){$head.innerHTML=hdrMonth(NAMEH+'　來客分析');$view.innerHTML=viewGuests()}
   else {$head.innerHTML=hdrMonth(NAMEH+'　營收（含已預訂）');$view.innerHTML=viewRev()}
+}
+
+/* ---------- guest analysis ---------- */
+var AGEB=[['20 歲以下',0,19],['20–29 歲',20,29],['30–39 歲',30,39],['40–49 歲',40,49],['50–59 歲',50,59],['60 歲以上',60,200]];
+function viewGuests(){
+  var gp=app.gp||'m',y=app.y,m=app.m,pre=gp==='m'?(y+'-'+pad(m)):gp==='y'?String(y):'';
+  var list=Object.keys(regs).map(function(k){var r=regs[k];return {d:regDay(r,k),age:regAge(r,k),city:regCity(r),p:r.purpose||'',pn:r.purposeNote||''}}).filter(function(x){return x.d&&x.d.indexOf(pre)===0});
+  var N=list.length;
+  var chips='<div style="display:flex;gap:8px">'+[['m',m+' 月'],['y',y+' 年'],['a','全部']].map(function(c){var on=gp===c[0];return '<button class="chip sm" data-act="gp" data-v="'+c[0]+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+c[1]+'</button>'}).join('')+'</div>';
+  function bars(rows,color){var mx=Math.max.apply(null,rows.map(function(r){return r[1]}).concat([1]));
+    return rows.map(function(r){var pct=N?Math.round(r[1]/N*100):0;return '<div style="display:flex;align-items:center;gap:8px;height:40px"><div style="width:96px;flex-shrink:0;font-size:16px;font-weight:500'+(r[2]?';color:#8A8478':'')+'">'+r[0]+'</div><div class="track"><i style="width:'+Math.round(r[1]/mx*100)+'%;background:'+(r[2]?'#B9B2A4':color)+'"></i></div><div style="width:74px;flex-shrink:0;text-align:right;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums">'+r[1]+' 組<span class="muted" style="font-size:13px;font-weight:400"> '+pct+'%</span></div></div>'}).join('')}
+  var label=gp==='m'?(y+' 年 '+m+' 月'):gp==='y'?(y+' 年'):'全部';
+  if(!N)return '<div class="pad14">'+chips+'<div class="card muted" style="text-align:center;padding:28px 16px;font-size:17px;line-height:1.7">'+label+'還沒有入住登記資料<br>完成入住登記後，這裡會依縣市、年齡、住宿目的統計</div></div>';
+  var P={'出差':0,'旅遊':0,'其他':0,'':0},notes={};list.forEach(function(x){P[x.p in P?x.p:'其他']++;if(x.p==='其他'&&x.pn)notes[x.pn]=(notes[x.pn]||0)+1});
+  var pRows=[['出差',P['出差']],['旅遊',P['旅遊']],['其他',P['其他']]];if(P[''])pRows.push(['未填',P[''],1]);
+  var nk=Object.keys(notes).sort(function(a,b){return notes[b]-notes[a]}).slice(0,6);
+  var C={},cUnk=0;list.forEach(function(x){if(x.city)C[x.city]=(C[x.city]||0)+1;else cUnk++});
+  var cRows=Object.keys(C).sort(function(a,b){return C[b]-C[a]||((a==='國外')-(b==='國外'))||(a<b?-1:1)}).map(function(k){return [k,C[k]]});
+  if(cUnk)cRows.push(['無法判斷',cUnk,1]);
+  var A=AGEB.map(function(a){return [a[0],0]}),aUnk=0,sum=0,cnt=0;
+  list.forEach(function(x){if(x.age==null){aUnk++;return}sum+=x.age;cnt++;for(var i=0;i<AGEB.length;i++)if(x.age>=AGEB[i][1]&&x.age<=AGEB[i][2]){A[i][1]++;break}});
+  if(aUnk)A.push(['未填生日',aUnk,1]);
+  var topCity=cRows.filter(function(r){return !r[2]})[0],biz=P['出差'];
+  return '<div class="pad14">'+chips+
+  '<div class="card"><div class="muted" style="font-size:14px">'+label+'・入住登記</div><div class="serif" style="font-size:36px;font-weight:600;margin:4px 0 12px">'+N+' 組客人</div>'+
+   '<div class="grid3" style="border-top:1px solid #E4DED1;padding-top:12px"><div><div class="muted" style="font-size:14px">平均年齡</div><b style="font-size:20px">'+(cnt?Math.round(sum/cnt)+' 歲':'–')+'</b></div><div><div class="muted" style="font-size:14px">出差比例</div><b style="font-size:20px">'+Math.round(biz/N*100)+'%</b></div><div><div class="muted" style="font-size:14px">最多來自</div><b style="font-size:20px">'+(topCity?topCity[0]:'–')+'</b></div></div>'+
+   '<div class="muted" style="font-size:13px;margin-top:12px">只計算每組的訂房代表人。</div></div>'+
+  '<div class="card"><div style="font-size:18px;font-weight:700;margin-bottom:6px">住宿目的</div>'+bars(pRows,'#B4521F')+
+   (nk.length?'<div class="muted" style="font-size:14px;margin-top:8px;line-height:1.7">其他：'+nk.map(function(k){return esc(k)+(notes[k]>1?'×'+notes[k]:'')}).join('、')+'</div>':'')+'</div>'+
+  '<div class="card"><div style="font-size:18px;font-weight:700;margin-bottom:6px">年齡</div>'+bars(A,'#4E6B4A')+'</div>'+
+  '<div class="card"><div style="font-size:18px;font-weight:700;margin-bottom:6px">來自哪個縣市</div>'+bars(cRows,'#1A72A6')+
+   (cUnk?'<div class="muted" style="font-size:13px;margin-top:8px">「無法判斷」是地址沒填，或沒寫縣市。</div>':'')+'</div></div>';
 }
 
 /* ---------- calendar ---------- */
@@ -360,7 +423,7 @@ function regCard(b){
   function kv(k,v){return v?'<div class="muted" style="font-size:14px">'+k+'</div><div style="font-size:17px;font-weight:500;word-break:break-all">'+v+'</div>':''}
   var comps=(r.comps||[]).map(function(p,i){return '<div style="border-top:1px solid #E4DED1;padding-top:10px;margin-top:10px"><b>同行旅客 '+(i+1)+'：'+esc(p.name||'')+'</b><div class="muted" style="font-size:15px;line-height:1.7">'+(p.idno?'證件 '+esc(p.idno)+'<br>':'')+(rocStr(p.by,p.bm,p.bd)?'生日 '+esc(rocStr(p.by,p.bm,p.bd)):'')+'</div></div>'}).join('');
   return '<div class="card"><div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#34402F;margin-bottom:12px">✓ 已完成入住登記<span class="muted" style="margin-left:auto;font-size:13px;font-weight:400">'+esc(new Date(r.ts).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}))+'</span></div>'+
-   '<div style="display:grid;grid-template-columns:72px minmax(0,1fr);row-gap:12px;align-items:center">'+kv('姓名',esc(r.name))+kv('證件號碼',esc(r.idno))+kv('生日',esc(rocStr(r.by,r.bm,r.bd)))+kv('電話',esc(fmtPh(r.phone||'')))+kv('車牌',esc(r.plate))+kv('地址',esc(r.addr))+kv('備註',esc(r.note))+'</div>'+comps+
+   '<div style="display:grid;grid-template-columns:72px minmax(0,1fr);row-gap:12px;align-items:center">'+kv('姓名',esc(r.name))+kv('證件號碼',esc(r.idno))+kv('生日',esc(rocStr(r.by,r.bm,r.bd)))+kv('電話',esc(fmtPh(r.phone||'')))+kv('車牌',esc(r.plate))+kv('地址',esc(r.addr))+kv('住宿目的',esc(r.purpose?(r.purpose+(r.purposeNote?'（'+r.purposeNote+'）':'')):''))+kv('備註',esc(r.note))+'</div>'+comps+
    '<button class="ghostbtn" style="margin-top:14px" data-act="editreg" data-id="'+b.id+'">修改登記資料</button></div>';
 }
 function gInfo(b){
@@ -605,7 +668,14 @@ function currentBooking(){
 }
 function ensureCi(b){
   if(!b){app.ci=null;return}
-  if(!app.ci||app.ci.id!==b.id)app.ci={id:b.id,name:b.who,idno:'',by:'',bm:'',bd:'',phone:b.phone,plate:'',addr:'',note:'',comps:[],scanned:false};
+  if(!app.ci||app.ci.id!==b.id)app.ci={id:b.id,name:b.who,idno:'',by:'',bm:'',bd:'',phone:b.phone,plate:'',addr:'',note:'',purpose:'',purposeNote:'',comps:[],scanned:false,pf:''};
+}
+function prevReg(b,c){
+  var ids={};group(b).forEach(function(x){ids[x.id]=1});
+  var ps=[digits(b.phone),digits(c&&c.phone)].filter(function(p){return p.length>=9});if(!ps.length)return null;
+  var best=null,bid=null;
+  Object.keys(regs).forEach(function(k){var r=regs[k];if(ids[k]||r.anon)return;if(ps.indexOf(digits(r.phone))<0)return;if(!best||r.ts>best.ts){best=r;bid=k}});
+  return best?{r:best,id:bid,day:regDay(best,bid)}:null;
 }
 function adYear(roc){var y=Number(roc);return y>0?y+1911:null}
 function bdField(p,v){return '<div style="display:flex;align-items:center;gap:6px"><input class="inp sm" type="text" inputmode="numeric" placeholder="'+v[1]+'" aria-label="'+v[2]+'" value="'+esc(v[0])+'" data-in="'+p+'" style="padding:0 12px"><span class="muted" style="font-size:16px">'+v[2].slice(-1)+'</span></div>'}
@@ -613,7 +683,13 @@ function viewCheckin(){
   var b=currentBooking();ensureCi(b);
   if(!b)return '<div class="pad"><div class="card muted" style="text-align:center;padding:28px 16px;font-size:18px;line-height:1.6">這天還沒有可登記的住客<br>請先在「房況」點一間有人住的房，按「登記」</div><button class="ghostbtn" data-act="tab" data-t="cal">回房況</button></div>';
   app.checkId=b.id;var c=app.ci,g=group(b),nights=dayDiff(b.from,b.to);
-  var h='<div class="pad">'+
+  var pv=c.pf?null:prevReg(b,c),pvH='';
+  if(pv){var day=pv.day,pr=pv.r;
+    pvH='<div class="card" style="border-color:#C5CFBF;background:#EEF2EA;display:flex;flex-direction:column;gap:10px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="back back-pill">回流客</span><b style="font-size:17px">'+esc(pr.name||'')+'</b><span class="muted" style="font-size:14px">上次入住 '+(day?(+day.slice(0,4))+'/'+(+day.slice(5,7))+'/'+(+day.slice(8,10)):'')+'</span></div>'+
+     '<div style="font-size:15px;line-height:1.6">要帶入之前的登記資料嗎？'+(pr.lite?'<br><span class="muted" style="font-size:14px">證件號碼與生日已超過保存期限，帶入後請重新填寫這兩項。</span>':'')+((pr.comps||[]).length?'<br><span class="muted" style="font-size:14px">含同行旅客 '+pr.comps.length+' 位，不同行的可以移除。</span>':'')+'</div>'+
+     '<div class="grid2"><button class="primary" style="margin-top:0;height:52px;font-size:17px;letter-spacing:.04em" data-act="prefill" data-id="'+pv.id+'">帶入之前資料</button><button class="ghostbtn" style="height:52px;font-size:17px" data-act="prefill" data-id="">不用，重新填</button></div></div>';
+  }
+  var h='<div class="pad">'+pvH+
   '<div class="card"><div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#4A5A44;margin-bottom:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg>訂單資料已自動帶入</div>'+
   '<div style="display:grid;grid-template-columns:72px minmax(0,1fr);row-gap:10px;align-items:center;font-size:18px"><div class="muted" style="font-size:14px">訂房人</div><b>'+esc(b.who||'（已清除）')+'</b><div class="muted" style="font-size:14px">日期</div><b>'+md(b.from)+' – '+md(b.to)+'　共 '+nights+' 晚</b><div class="muted" style="font-size:14px">房間</div><div style="font-weight:700">'+g.map(function(x){var r=room(x.room);return '<div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:22px;border-radius:4px;background:'+rc(r)+'"></span>'+rname(r)+'（'+r.cap+' 人房・'+x.n+' 人）</div>'}).join('')+'</div><div class="muted" style="font-size:14px">人數</div><b>'+g.reduce(function(s,x){return s+x.n},0)+' 人</b></div></div>'+
   '<div class="serif" style="font-size:20px;font-weight:600;letter-spacing:.04em;margin-bottom:-8px">住客資料</div>'+
@@ -623,6 +699,8 @@ function viewCheckin(){
   '<div><label class="lbl" for="c-phone">聯絡電話</label><input id="c-phone" class="inp" type="tel" inputmode="tel" placeholder="09xx xxx xxx" value="'+esc(c.phone)+'" data-in="ci.phone"></div>'+
   '<div><label class="lbl" for="c-plate">車牌號碼</label><input id="c-plate" class="inp" type="text" placeholder="沒有開車可留空" value="'+esc(c.plate)+'" data-in="ci.plate"></div>'+
   '<div><label class="lbl" for="c-addr">地址</label><input id="c-addr" class="inp" type="text" placeholder="縣市、鄉鎮、路名門牌" value="'+esc(c.addr)+'" data-in="ci.addr"></div>'+
+  '<div><span class="lbl">住宿目的</span><div style="display:flex;gap:8px;flex-wrap:wrap">'+['出差','旅遊','其他'].map(function(x){var on=c.purpose===x;return '<button class="chip" data-act="purpose" data-v="'+x+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+';min-width:88px">'+x+'</button>'}).join('')+'</div>'+
+   (c.purpose==='其他'?'<input id="c-pnote" class="inp" style="margin-top:10px" type="text" placeholder="例：探親、喝喜酒、比賽" value="'+esc(c.purposeNote||'')+'" data-in="ci.purposeNote" aria-label="其他目的說明">':'')+'</div>'+
   '<div><label class="lbl" for="c-note">備註</label><textarea id="c-note" class="inp" rows="3" placeholder="例：加床、素食、慶生" data-in="ci.note">'+esc(c.note)+'</textarea></div>';
   c.comps.forEach(function(p,i){
     h+='<div class="card" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:18px">同行旅客 '+(i+1)+'</b><button class="linkbtn" data-act="delcomp" data-i="'+i+'">移除</button></div>'+
@@ -630,7 +708,7 @@ function viewCheckin(){
     '<div><label class="lbl">身分證／護照號碼</label><input class="inp" type="text" autocapitalize="characters" value="'+esc(p.idno)+'" data-in="comp.'+i+'.idno"></div>'+
     '<div><label class="lbl">生日（民國）</label><div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr);gap:8px">'+bdField('comp.'+i+'.by',[p.by,'74','出生年'])+bdField('comp.'+i+'.bm',[p.bm,'6','出生月'])+bdField('comp.'+i+'.bd',[p.bd,'15','出生日'])+'</div></div></div>';
   });
-  h+='<button class="dashed" data-act="addcomp">＋ 新增同行旅客</button><button class="primary" data-act="finish">完成入住登記</button><button class="ghostbtn" style="margin-top:8px;color:#B4521F;border-color:#B4521F" data-act="cancel">取消這筆訂單</button><div class="foot">登記資料保存 6 個月後自動清除</div></div>';
+  h+='<button class="dashed" data-act="addcomp">＋ 新增同行旅客</button><button class="primary" data-act="finish">完成入住登記</button><button class="ghostbtn" style="margin-top:8px;color:#B4521F;border-color:#B4521F" data-act="cancel">取消這筆訂單</button><div class="foot">證件號碼與生日保存 6 個月；其他資料保存 2 年供回流客帶入</div></div>';
   return h;
 }
 function refreshCi(){
@@ -711,7 +789,8 @@ function sync(){
     ciq=ciq.filter(function(c){return sentCi.indexOf(c)<0});save(QKEY,ciq);
     fq=fq.filter(function(p){return sentFq.indexOf(p)<0});save(FQKEY,fq);
     (res.regs||[]).forEach(function(r){var id=Number(r.bookingId),old=regs[id];if(old&&old.ts>=Number(r.ts))return;if(ciq.some(function(c){return c.bookingId===id}))return;var bd=parseBirth(r.birth),comps=[];try{comps=(r.companions||[]).map(function(p){var q=parseBirth(p.birth);return {name:p.name||'',idno:p.idno||'',by:q.by,bm:q.bm,bd:q.bd}})}catch(e){}
-      regs[id]={ts:Number(r.ts),checkout:r.checkout,name:r.name,idno:r.idno,by:bd.by,bm:bd.bm,bd:bd.bd,phone:fixPh(r.phone),plate:r.plate,addr:r.addr,note:r.note,comps:comps}});save(RKEY,regs);
+      regs[id]={ts:Number(r.ts),checkout:r.checkout,ci:r.ci||'',purpose:r.purpose||'',purposeNote:r.purposeNote||'',age:(r.age===''||r.age==null)?null:Number(r.age),city:r.city||'',name:r.name||'',idno:r.idno||'',by:bd.by,bm:bd.bm,bd:bd.bd,phone:fixPh(r.phone||''),plate:r.plate||'',addr:r.addr||'',note:r.note||'',comps:comps};
+      if(!r.name&&!r.phone)regs[id].anon=true;else if(!r.idno&&!r.birth&&r.checkout<addDay(TODAY0(),-183))regs[id].lite=true});save(RKEY,regs);
     var local={};bookings.forEach(function(b){local[b.id]=b});
     var out=[],seen={};
     res.rows.forEach(function(r){seen[r.id]=1;r.phone=fixPh(r.phone);if(tomb[r.id])return;if(dirty.indexOf(r.id)>=0&&local[r.id]){out.push(local[r.id]);return}if(!r.deleted)out.push(r)});
@@ -738,7 +817,7 @@ function setPath(path,val){
   if(p[0]==='ci'){c[p[1]]=val}
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
-var APPV='v20';
+var APPV='v21';
 var act={
   upd:function(){toast('更新中…');Promise.all([navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}):0,window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0]).catch(function(){}).then(function(){location.reload()})},
   tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
@@ -747,7 +826,7 @@ var act={
   reset:function(){if(!confirm('確定要清除所有訂單資料嗎？清除後無法復原。'))return;bookings=[];dirty=[];tomb={};ciq=[];save(DKEY,dirty);save(TKEY,tomb);save(QKEY,ciq);persist();app.tab='cal';app.order=freshOrder(TODAY);app.ci=null;app.checkId=null;app.sel=TODAY;render();toast(syncCfg.url?'已清除，下次同步會從試算表重新載入':'已清除所有資料')},
   'new':function(d){var o=freshOrder(app.sel);o.custom=app.sel!==TODAY;o.rooms[d.k]=true;o.guests[d.k]={a:Math.min(2,room(d.k).cap),c:0};app.order=o;app.tab='order';render();window.scrollTo(0,0)},
   editreg:function(d){var b=bookings.filter(function(x){return x.id===Number(d.id)})[0];if(!b)return;var r=regFor(b);if(!r)return;var rid=Number(Object.keys(regs).filter(function(k){return regs[k]===r})[0]);
-    app.checkId=rid||b.id;app.ci={id:app.checkId,name:r.name,idno:r.idno,by:r.by||'',bm:r.bm||'',bd:r.bd||'',phone:r.phone||'',plate:r.plate||'',addr:r.addr||'',note:r.note||'',comps:(r.comps||[]).map(function(p){return {name:p.name||'',idno:p.idno||'',by:p.by||'',bm:p.bm||'',bd:p.bd||''}}),scanned:false};app.tab='checkin';render();window.scrollTo(0,0)},
+    app.checkId=rid||b.id;app.ci={id:app.checkId,name:r.name,idno:r.idno,by:r.by||'',bm:r.bm||'',bd:r.bd||'',phone:r.phone||'',plate:r.plate||'',addr:r.addr||'',note:r.note||'',purpose:r.purpose||'',purposeNote:r.purposeNote||'',pf:'edit',comps:(r.comps||[]).map(function(p){return {name:p.name||'',idno:p.idno||'',by:p.by||'',bm:p.bm||'',bd:p.bd||''}}),scanned:false};app.tab='checkin';render();window.scrollTo(0,0)},
   checkin:function(d){app.checkId=Number(d.id);app.ci=null;app.tab='checkin';render();window.scrollTo(0,0)},
   room:function(d){var o=app.order;if(o.rooms[d.k]){delete o.rooms[d.k];delete o.guests[d.k]}else{var bz=busyFor(room(d.k));if(bz){toast(rname(room(d.k))+' 這幾天已有訂單（'+(bz.who||'已清除')+'）');return}o.rooms[d.k]=true;o.guests[d.k]={a:Math.min(2,room(d.k).cap),c:0}}refreshRooms();refreshGuests();refreshPriceRows();refreshCalc()},
   adj:function(d){var g=app.order.guests[d.k];if(!g)return;g[d.f]=Math.max(d.f==='a'?1:0,g[d.f]+Number(d.d));refreshGuests()},
@@ -774,6 +853,11 @@ var act={
   canceledit:function(){app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
   delorder:function(){var ids=app.order.editIds||[];if(!ids.length)return;var nm=app.order.name;cancelGroup(ids,nm);app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
   sort:function(d){app.sort=d.s;render()},
+  gp:function(d){app.gp=d.v;render()},
+  purpose:function(d){var c=app.ci;if(!c)return;c.purpose=c.purpose===d.v?'':d.v;var y=window.scrollY;render();window.scrollTo(0,y)},
+  prefill:function(d){var c=app.ci;if(!c)return;c.pf=d.id?'yes':'no';
+    if(d.id){var r=regs[d.id];if(r){c.name=r.name||c.name;c.idno=r.idno||'';c.by=r.by||'';c.bm=r.bm||'';c.bd=r.bd||'';c.phone=r.phone||c.phone;c.plate=r.plate||'';c.addr=r.addr||'';c.purpose=r.purpose||'';c.purposeNote=r.purposeNote||'';c.comps=(r.comps||[]).map(function(p){return {name:p.name||'',idno:p.idno||'',by:p.by||'',bm:p.bm||'',bd:p.bd||''}});}}
+    var y=window.scrollY;render();window.scrollTo(0,y);if(d.id)toast(regs[d.id]&&regs[d.id].lite?'已帶入，請補填證件號碼與生日':'已帶入，請和住客確認有沒有變更')},
   'export':exportCsv,
   addcomp:function(){app.ci.comps.push({name:'',idno:'',by:'',bm:'',bd:''});var y=window.scrollY;render();window.scrollTo(0,y)},
   delcomp:function(d){app.ci.comps.splice(Number(d.i),1);var y=window.scrollY;render();window.scrollTo(0,y)},
@@ -785,8 +869,9 @@ var act={
     if(!app.ci.name.trim()){toast('請輸入姓名');return}
     var c=app.ci,ts=Date.now();
     group(b).forEach(function(x){delete regs[x.id]});
-    regs[b.id]={ts:ts,checkout:b.to,name:c.name.trim(),idno:c.idno.trim().toUpperCase(),by:c.by,bm:c.bm,bd:c.bd,phone:c.phone,plate:c.plate,addr:c.addr,note:c.note,comps:c.comps.map(function(p){return {name:p.name,idno:(p.idno||'').toUpperCase(),by:p.by,bm:p.bm,bd:p.bd}})};save(RKEY,regs);
-    ciq.push({bookingId:b.id,ts:ts,checkout:b.to,name:c.name.trim(),idno:c.idno.trim().toUpperCase(),birth:(c.by&&c.bm&&c.bd)?('民國 '+c.by+' 年 '+c.bm+' 月 '+c.bd+' 日'):'',phone:c.phone,plate:c.plate,addr:c.addr,note:c.note,companions:c.comps.map(function(p){return {name:p.name,idno:p.idno.toUpperCase(),birth:(p.by&&p.bm&&p.bd)?('民國 '+p.by+' 年 '+p.bm+' 月 '+p.bd+' 日'):''}}),rooms:group(b).map(function(x){return rname(room(x.room))}).join('、')});
+    var pp=c.purpose||'',pn=pp==='其他'?(c.purposeNote||'').trim():'',ag=ageAt(c.by,c.bm,c.bd,b.from),cy=cityOf(c.addr);
+    regs[b.id]={ts:ts,checkout:b.to,ci:b.from,purpose:pp,purposeNote:pn,age:ag,city:cy,name:c.name.trim(),idno:c.idno.trim().toUpperCase(),by:c.by,bm:c.bm,bd:c.bd,phone:c.phone,plate:c.plate,addr:c.addr,note:c.note,comps:c.comps.map(function(p){return {name:p.name,idno:(p.idno||'').toUpperCase(),by:p.by,bm:p.bm,bd:p.bd}})};save(RKEY,regs);
+    ciq.push({bookingId:b.id,ts:ts,checkout:b.to,ci:b.from,purpose:pp,purposeNote:pn,age:ag==null?'':ag,city:cy,name:c.name.trim(),idno:c.idno.trim().toUpperCase(),birth:(c.by&&c.bm&&c.bd)?('民國 '+c.by+' 年 '+c.bm+' 月 '+c.bd+' 日'):'',phone:c.phone,plate:c.plate,addr:c.addr,note:c.note,companions:c.comps.map(function(p){return {name:p.name,idno:p.idno.toUpperCase(),birth:(p.by&&p.bm&&p.bd)?('民國 '+p.by+' 年 '+p.bm+' 月 '+p.bd+' 日'):''}}),rooms:group(b).map(function(x){return rname(room(x.room))}).join('、')});
     save(QKEY,ciq);
     group(b).forEach(function(x){x.checked=true;touch(x)});persist();sync();
     var n=app.ci.name;app.ci=null;app.checkId=null;app.tab='cal';render();window.scrollTo(0,0);toast('已完成入住登記：'+n);
@@ -814,7 +899,7 @@ if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0){navigato
 document.addEventListener('keydown',function(e){
   if(e.altKey||e.ctrlKey||e.metaKey||document.getElementById('dlg').style.display==='block')return;
   var tg=e.target&&e.target.tagName;if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT')return;
-  if((app.tab==='cal'||app.tab==='rev')&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();act.mon({d:e.key==='ArrowLeft'?'-1':'1'})}
+  if((app.tab==='cal'||app.tab==='rev'||app.tab==='guests')&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){e.preventDefault();act.mon({d:e.key==='ArrowLeft'?'-1':'1'})}
 });
 if(WIDE.addEventListener)WIDE.addEventListener('change',function(){if(app.tab!=='order')render()});
 purgeLocal();render();
