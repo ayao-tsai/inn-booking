@@ -235,7 +235,7 @@ function touch(b){b.updatedAt=Date.now();if(dirty.indexOf(b.id)<0)dirty.push(b.i
 function purgeLocal(){
   var cut=addDay(TODAY0(),-183),ch=false,ch2=false;
   bookings.forEach(function(b){if(b.to<cut){if(!settings.keep&&(b.who||b.phone)){b.who='';b.phone='';ch=true}if(b.note){b.note='';ch=true}}});
-  var n=ciq.length;ciq=ciq.filter(function(c){return c.checkout>=cut});if(ciq.length!==n){save(QKEY,ciq)}
+  var n=ciq.length;ciq=ciq.filter(function(c){return c.checkout>=cut||c.fix});if(ciq.length!==n){save(QKEY,ciq)}
   var cut2=addDay(TODAY0(),-730);
   Object.keys(regs).forEach(function(k){var r=regs[k];if(!r.checkout||r.checkout>=cut)return;
     if(r.age==null){var ag=regAge(r,k);if(ag!=null){r.age=ag;ch2=true}}
@@ -353,7 +353,7 @@ function render(){
 var AGEB=[['20 歲以下',0,19],['20–29 歲',20,29],['30–39 歲',30,39],['40–49 歲',40,49],['50–59 歲',50,59],['60 歲以上',60,200]];
 function viewGuests(){
   var gp=app.gp||'m',y=app.y,m=app.m,pre=gp==='m'?(y+'-'+pad(m)):gp==='y'?String(y):'';
-  var list=Object.keys(regs).map(function(k){var r=regs[k];return {d:regDay(r,k),age:regAge(r,k),city:regCity(r),p:r.purpose||'',pn:r.purposeNote||''}}).filter(function(x){return x.d&&x.d.indexOf(pre)===0});
+  var list=Object.keys(regs).map(function(k){var r=regs[k];return {k:k,nm:r.name||'',ad:r.addr||'',d:regDay(r,k),age:regAge(r,k),city:regCity(r),p:r.purpose||'',pn:r.purposeNote||''}}).filter(function(x){return x.d&&x.d.indexOf(pre)===0});
   var N=list.length;
   var chips='<div style="display:flex;gap:8px">'+[['m',m+' 月'],['y',y+' 年'],['a','全部']].map(function(c){var on=gp===c[0];return '<button class="chip sm" data-act="gp" data-v="'+c[0]+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+c[1]+'</button>'}).join('')+'</div>';
   function bars(rows,color){var mx=Math.max.apply(null,rows.map(function(r){return r[1]}).concat([1]));
@@ -378,7 +378,12 @@ function viewGuests(){
    (nk.length?'<div class="muted" style="font-size:14px;margin-top:8px;line-height:1.7">其他：'+nk.map(function(k){return esc(k)+(notes[k]>1?'×'+notes[k]:'')}).join('、')+'</div>':'')+'</div>'+
   '<div class="card"><div style="font-size:18px;font-weight:700;margin-bottom:6px">年齡</div>'+bars(A,'#4E6B4A')+'</div>'+
   '<div class="card"><div style="font-size:18px;font-weight:700;margin-bottom:6px">來自哪個縣市</div>'+bars(cRows,'#1A72A6')+
-   (cUnk?'<div class="muted" style="font-size:13px;margin-top:8px">「無法判斷」是地址沒填，或沒寫縣市。</div>':'')+'</div></div>';
+   (cUnk?'<div class="muted" style="font-size:13px;margin-top:8px">「無法判斷」是地址沒填，或沒寫縣市。</div>'+
+     '<button class="ghostbtn" style="margin-top:12px;height:50px;font-size:16px" data-act="fixcity" aria-expanded="'+!!app.fixCity+'">'+(app.fixCity?'收起':'查看並補填縣市（'+cUnk+' 組）')+'</button>'+
+     (app.fixCity?'<div style="margin-top:6px">'+list.filter(function(x){return !x.city}).sort(function(a,b){return a.d<b.d?1:-1}).map(function(x){
+       return '<div style="border-top:1px solid #E4DED1;padding:12px 0;display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b style="font-size:16px">'+esc(x.nm||'（已匿名）')+'</b><span class="muted" style="font-size:14px;flex-shrink:0">'+(x.d?(+x.d.slice(5,7))+'/'+(+x.d.slice(8,10))+'（'+x.d.slice(0,4)+'）':'')+' 入住</span></div>'+
+        '<div style="font-size:15px;word-break:break-all">'+(x.ad?'地址：'+esc(x.ad):'<span class="muted">地址沒填</span>')+'</div>'+
+        '<select class="inp" style="height:50px;font-size:16px" data-city="'+x.k+'" aria-label="'+esc(x.nm||'這組客人')+'的縣市"><option value="">選擇縣市…</option>'+CITIES.concat(['國外']).map(function(c){return '<option>'+c+'</option>'}).join('')+'</select></div>'}).join('')+'</div>':''):'')+'</div></div>';
 }
 
 /* ---------- calendar ---------- */
@@ -817,7 +822,7 @@ function setPath(path,val){
   if(p[0]==='ci'){c[p[1]]=val}
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
-var APPV='v21';
+var APPV='v22';
 var act={
   upd:function(){toast('更新中…');Promise.all([navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}):0,window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0]).catch(function(){}).then(function(){location.reload()})},
   tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
@@ -854,6 +859,7 @@ var act={
   delorder:function(){var ids=app.order.editIds||[];if(!ids.length)return;var nm=app.order.name;cancelGroup(ids,nm);app.order=freshOrder(app.sel);app.tab='cal';render();window.scrollTo(0,0)},
   sort:function(d){app.sort=d.s;render()},
   gp:function(d){app.gp=d.v;render()},
+  fixcity:function(){app.fixCity=!app.fixCity;var y=window.scrollY;render();window.scrollTo(0,y)},
   purpose:function(d){var c=app.ci;if(!c)return;c.purpose=c.purpose===d.v?'':d.v;var y=window.scrollY;render();window.scrollTo(0,y)},
   prefill:function(d){var c=app.ci;if(!c)return;c.pf=d.id?'yes':'no';
     if(d.id){var r=regs[d.id];if(r){c.name=r.name||c.name;c.idno=r.idno||'';c.by=r.by||'';c.bm=r.bm||'';c.bd=r.bd||'';c.phone=r.phone||c.phone;c.plate=r.plate||'';c.addr=r.addr||'';c.purpose=r.purpose||'';c.purposeNote=r.purposeNote||'';c.comps=(r.comps||[]).map(function(p){return {name:p.name||'',idno:p.idno||'',by:p.by||'',bm:p.bm||'',bd:p.bd||''}});}}
@@ -878,6 +884,19 @@ var act={
   }
 };
 document.addEventListener('click',function(e){var t=e.target.closest('[data-act]');if(!t)return;var f=act[t.dataset.act];if(f)f(t.dataset,t,e)});
+function setCity(k,city){
+  var r=regs[k];if(!r||!city)return;var ts=Date.now(),b=bookings.filter(function(x){return x.id===Number(k)})[0];
+  r.city=city;r.ts=ts;if(!r.ci)r.ci=regDay(r,k);save(RKEY,regs);
+  ciq.push({fix:true,bookingId:Number(k),ts:ts,checkout:r.checkout||'',ci:r.ci||'',purpose:r.purpose||'',purposeNote:r.purposeNote||'',age:r.age==null?'':r.age,city:city,
+    name:r.name||'',idno:r.idno||'',birth:(r.by&&r.bm&&r.bd)?('民國 '+r.by+' 年 '+r.bm+' 月 '+r.bd+' 日'):'',phone:r.phone||'',plate:r.plate||'',addr:r.addr||'',note:r.note||'',
+    companions:(r.comps||[]).map(function(p){return {name:p.name||'',idno:p.idno||'',birth:(p.by&&p.bm&&p.bd)?('民國 '+p.by+' 年 '+p.bm+' 月 '+p.bd+' 日'):''}}),
+    rooms:b?group(b).map(function(x){return rname(room(x.room))}).join('、'):''});
+  save(QKEY,ciq);sync();
+}
+document.addEventListener('change',function(e){
+  var t=e.target.closest('[data-city]');if(!t||!t.value)return;
+  var k=t.dataset.city,v=t.value,r=regs[k];setCity(k,v);var y=window.scrollY;render();window.scrollTo(0,y);toast((r&&r.name?r.name:'這組客人')+' 設為 '+v);
+});
 document.addEventListener('input',function(e){
   var t=e.target.closest('[data-in]');if(!t)return;var k=t.dataset.in,v=t.value,o=app.order;
   if(k==='inD'){o.inD=v;if(dayDiff(o.inD,o.outD)<1){o.outD=addDay(v,1);var oe=document.getElementById('o-out');if(oe)oe.value=o.outD}refreshNights();refreshRooms();refreshCalc()}
