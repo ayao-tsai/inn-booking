@@ -35,6 +35,7 @@ Google 試算表「循跡訂房資料」（tracover2025 帳號）：訂單／已
 | `tracover/sw.js` | Service worker，快取名稱 `app-vNN-tracover` |
 | `tracover/manifest.webmanifest`、圖示 | PWA 設定 |
 | `tracover/同步設定說明.md` | 給家人看的同步設定步驟（新民宿上線時用） |
+| `haijin/` | 海津&海町文旅的 App：`tracover/` 的複本，只有 `CFG`、標題、manifest、sw 快取名稱不同 |
 | `Code.gs` | **Apps Script 後端的正本** |
 | `test/server.mjs` | 後端測試（Node 裡模擬 Apps Script 執行 `Code.gs`） |
 | `test/app.mjs` | 畫面測試（Playwright，假的同步後端） |
@@ -122,7 +123,9 @@ PW_PATH=$(npm root -g)/playwright node test/app.mjs    # 畫面：手機與電�
   - 海津 `js`：101（4 人）、201（4）、202（6）、203（2）
   - 海町 `ht`：101（4）、102（2）、201（4）、202（4）、203（4）
   - 住客通知範本還沒提供。
-- 程式**還不在 repo 裡**。要上線時：複製 `tracover/` 成新資料夾，換掉 `CFG` 區塊、manifest 名稱和 sw 快取名稱，`Code.gs` 的 `ROOMS_` 換成上面的房間。試算表和 Apps Script 建在媽媽的 Google 帳號，照 `tracover/同步設定說明.md` 做，家人帳號開共用。
+- 程式在 `haijin/`（`APPV='v1'`、快取名稱 `app-v1-haijin`）。**循跡改了功能後，把 `tracover/index.html` 複製過去，只重換 `/*CFG*/` 到 `/*ENDCFG*/` 之間、`<title>`、`apple-mobile-web-app-title`，`manifest`、`sw.js` 的名稱和快取名稱照舊。** 還沒上線：試算表和 Apps Script 要建在媽媽的 Google 帳號，`Code.gs` 的 `ROOMS_` 換成 `haijin/同步設定說明.md` 裡的那份，家人帳號開共用。
+- 房間代號：`js101`…、`ht101`…。住客通知範本還沒提供，所以 `CFG` 沒有 `msg`（畫面上就不會出現「複製住客通知」）。
+- `test/app.mjs` 目前只測 `tracover/`；`haijin/` 只做過手機 320／390、電腦 1440 的開啟與填單頁房間檢查。
 - 改了循跡的功能，之後要帶到海津&海町時，只需要換 `CFG`，不要分岔改兩套。
 
 ## 9. 工作慣例
