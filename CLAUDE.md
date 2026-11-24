@@ -62,7 +62,7 @@ Google 試算表「循跡訂房資料」（tracover2025 帳號）：訂單／已
 ## 5. 前端結構（`tracover/index.html`）
 章節索引：`grep -n "^/\* ---------- " tracover/index.html`。章節有：desktop（電腦版 CSS）、sample data、helpers、state、shell、guest analysis、calendar、day status、order detail、retention settings、order、check-in、revenue、sync、events。
 
-- **設定區塊** `var CFG={…}` 到 `/*ENDCFG*/`：民宿名稱、localStorage 前綴 `key`、房間 `groups[].rooms`（`[號碼, 人數, 顏色, 名稱]`）、住客通知範本 `msg`（`types`、`tpl`）、預設填單方式 `flow`。**兩間民宿只差這一塊。**
+- **設定區塊** `var CFG={…}` 到 `/*ENDCFG*/`：民宿名稱、localStorage 前綴 `key`、房間 `groups[].rooms`（`[號碼, 人數, 顏色, 名稱]`）、住客通知範本 `msg`（`types`、`tpl`）、預設填單方式 `flow`、新增訂單日期選法 `dates`（`'pick'`＝直接選入住與退房日期，沒設就是「今天／週末／自己選」按鈕）。**兩間民宿只差這一塊。**
 - **房間代號** `k` = 群組 id＋房號，例如 `tc202`。後端 `Code.gs` 的 `ROOMS_` 要一致。
 - **狀態**：`app`（`tab`、`y`／`m`、`sel` 選中的日期、`order` 填單中、`ci` 登記中、`checkId`…）、`bookings`、`regs`、`settings`（`keep` 保留回流客、`flow` 填單方式）。
 - **繪製**：`render()` 依 `app.tab`（`cal`、`order`、`checkin`、`detail`、`rev`、`guests`、`settings`）呼叫 `viewXxx()`，直接寫 innerHTML。
@@ -119,11 +119,11 @@ PW_PATH=$(npm root -g)/playwright node test/app.mjs    # 畫面：手機與電�
 - 視覺改動另外用 Playwright 截 390 寬和電腦寬的圖親眼看過，必要時把圖送給 Ayao。
 
 ## 8. 海津&海町文旅
-- 跟循跡的差別只在 `CFG`：`flow:'one'`（媽媽偏好整頁填寫）、`name:'海津&海町文旅'`、`key:'hjhm_data_v1'`、兩個群組：
+- 跟循跡的差別只在 `CFG`：`flow:'one'`（媽媽偏好整頁填寫）、`dates:'pick'`、`name:'海津&海町文旅'`、`key:'hjhm_data_v1'`、兩個群組：
   - 海津 `js`：101（4 人）、201（4）、202（6）、203（2）
   - 海町 `ht`：101（4）、102（2）、201（4）、202（4）、203（4）
   - 住客通知範本還沒提供。
-- 程式在 `haijin/`（`APPV='v1'`、快取名稱 `app-v1-haijin`）。**循跡改了功能後，把 `tracover/index.html` 複製過去，只重換 `/*CFG*/` 到 `/*ENDCFG*/` 之間、`<title>`、`apple-mobile-web-app-title`，`manifest`、`sw.js` 的名稱和快取名稱照舊。** 還沒上線：試算表和 Apps Script 要建在媽媽的 Google 帳號，`Code.gs` 的 `ROOMS_` 換成 `haijin/同步設定說明.md` 裡的那份，家人帳號開共用。
+- 程式在 `haijin/`（`APPV='v2'`、快取名稱 `app-v2-haijin`；循跡目前 v24）。**循跡改了功能後，把 `tracover/index.html` 複製過去，只重換 `/*CFG*/` 到 `/*ENDCFG*/` 之間、`<title>`、`apple-mobile-web-app-title`，`manifest`、`sw.js` 的名稱和快取名稱照舊。** 還沒上線：試算表和 Apps Script 要建在媽媽的 Google 帳號，`Code.gs` 的 `ROOMS_` 換成 `haijin/同步設定說明.md` 裡的那份，家人帳號開共用。
 - 房間代號：`js101`…、`ht101`…。住客通知範本還沒提供，所以 `CFG` 沒有 `msg`（畫面上就不會出現「複製住客通知」）。
 - `test/app.mjs` 目前只測 `tracover/`；`haijin/` 只做過手機 320／390、電腦 1440 的開啟與填單頁房間檢查。
 - 改了循跡的功能，之後要帶到海津&海町時，只需要換 `CFG`，不要分岔改兩套。
