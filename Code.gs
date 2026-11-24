@@ -3,7 +3,7 @@
  * 貼到「試算表 → 擴充功能 → Apps Script」，依說明部署為網頁應用程式。
  * 資料表：「訂單」「入住登記」會自動建立。
  */
-var BOOK_HEAD = ['id', 'room', 'who', 'phone', 'n', 'from', 'to', 'price', 'deposit', 'src', 'note', 'checked', 'deleted', 'updatedAt', 'paid', 'bookedOn', 'warn'];
+var BOOK_HEAD = ['id', 'room', 'who', 'phone', 'n', 'from', 'to', 'price', 'deposit', 'src', 'note', 'checked', 'deleted', 'updatedAt', 'paid', 'bookedOn', 'warn', 'bf'];
 var CI_HEAD = ['bookingId', 'ts', 'checkout', 'name', 'idno', 'birth', 'phone', 'plate', 'addr', 'note', 'companions', 'rooms', 'purpose', 'purposeNote', 'age', 'city', 'ci'];
 // 房間清單（唯讀「房況摘要」用）：k 要和 App 裡的房間代號一致
 var ROOMS_ = [
@@ -47,7 +47,7 @@ function ph_(v) {
 }
 
 var HIST_HEAD = ['時間', '動作', 'id', '房間', '姓名', '電話', '入住', '退房', '房價', '訂金', '改了什麼'];
-var FIELDS_ = [['room', 1], ['who', 2], ['phone', 3], ['n', 4], ['from', 5], ['to', 6], ['price', 7], ['deposit', 8], ['src', 9], ['note', 10], ['checked', 11], ['paid', 14], ['bookedOn', 15], ['warn', 16]];
+var FIELDS_ = [['room', 1], ['who', 2], ['phone', 3], ['n', 4], ['from', 5], ['to', 6], ['price', 7], ['deposit', 8], ['src', 9], ['note', 10], ['checked', 11], ['paid', 14], ['bookedOn', 15], ['warn', 16], ['bf', 17]];
 function cs2_() { return sheet_('已取消', BOOK_HEAD); }
 function hist_() { return sheet_('歷程', HIST_HEAD); }
 function pad_(v) { v = v.slice(); while (v.length < BOOK_HEAD.length) v.push(''); return v; }
@@ -61,13 +61,13 @@ function write_(sh, head, rows) {
 }
 function diff_(a, b) {
   a = pad_(a); b = pad_(b);
-  var names = { room: '房間', who: '姓名', phone: '電話', n: '人數', from: '入住', to: '退房', price: '房價', deposit: '訂金', src: '管道', note: '備註', checked: '登記', paid: '尾款', bookedOn: '預訂日', warn: '注意' };
+  var names = { room: '房間', who: '姓名', phone: '電話', n: '人數', from: '入住', to: '退房', price: '房價', deposit: '訂金', src: '管道', note: '備註', checked: '登記', paid: '尾款', bookedOn: '預訂日', warn: '注意', bf: '早餐' };
   var out = [];
   FIELDS_.forEach(function (f) {
     var x = f[0] === 'from' || f[0] === 'to' ? d_(a[f[1]]) : String(a[f[1]]);
     var y = f[0] === 'from' || f[0] === 'to' ? d_(b[f[1]]) : String(b[f[1]]);
     if (f[0] === 'phone') { x = ph_(x); y = ph_(y); }
-    if (x !== y) out.push(['who', 'phone', 'note', 'warn'].indexOf(f[0]) >= 0 ? names[f[0]] + '已更改' : names[f[0]] + '：' + x + ' → ' + y);
+    if (x !== y) out.push(['who', 'phone', 'note', 'warn', 'bf'].indexOf(f[0]) >= 0 ? names[f[0]] + '已更改' : names[f[0]] + '：' + x + ' → ' + y);
   });
   return out.join('；');
 }
@@ -254,7 +254,7 @@ function toRow_(r) {
   return [
     String(r.id), r.room || '', r.who || '', r.phone || '', String(r.n || 0), r.from || '', r.to || '',
     String(r.price || 0), String(r.deposit || 0), r.src || '', r.note || '',
-    r.checked ? '1' : '', r.deleted ? '1' : '', String(r.updatedAt || Date.now()), r.paid ? '1' : '', r.bookedOn || '', r.warn || ''
+    r.checked ? '1' : '', r.deleted ? '1' : '', String(r.updatedAt || Date.now()), r.paid ? '1' : '', r.bookedOn || '', r.warn || '', r.bf ? '1' : ''
   ];
 }
 
@@ -264,7 +264,7 @@ function fromRow_(v) {
     from: d_(v[5]), to: d_(v[6]), price: Number(v[7]) || 0, deposit: Number(v[8]) || 0,
     src: v[9], note: v[10], checked: v[11] === '1' || v[11] === 1, deleted: v[12] === '1' || v[12] === 1,
     updatedAt: Number(v[13]) || 0, paid: v[14] === '1' || v[14] === 1,
-    bookedOn: v[15] ? d_(v[15]) : '', warn: v[16] ? String(v[16]) : ''
+    bookedOn: v[15] ? d_(v[15]) : '', warn: v[16] ? String(v[16]) : '', bf: v[17] === '1' || v[17] === 1
   };
 }
 

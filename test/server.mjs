@@ -50,6 +50,7 @@ post({ action: "sync", rows: [row({ price: 2400, updatedAt: 20 })] });
 post({ action: "sync", rows: [row({ id: 2, room: "tc301", deleted: true, updatedAt: 30 })] });
 assert.equal(sheets["訂單"].d.length - 1, 1, "cancelled order moved out");
 assert.equal(sheets["已取消"].d.length - 1, 1, "cancelled order kept in 已取消");
+
 const acts = sheets["歷程"].d.slice(1).map((v) => v[1]).join(",");
 assert.equal(acts, "新增,新增,修改,取消", "history log");
 r = post({ action: "sync", rows: [row({ price: 1, updatedAt: 5 })] });
@@ -85,4 +86,9 @@ assert.equal(ctx.cityOf_("臺北縣板橋"), "新北市");
 assert.equal(ctx.cityOf_("新竹"), "");
 assert.equal(ctx.cityOf_("Tokyo"), "國外");
 assert.equal(ctx.ageFrom_("民國 82 年 6 月 14 日", "2026-06-13"), 32);
+// 早餐（選填新欄位）：存得進去、讀得回來；舊 App 沒送這欄也能存
+r = post({ action: "sync", rows: [row({ id: 7, room: "tc202", who: "測試丙", phone: "0911000007", bf: true, updatedAt: 40 }), row({ id: 8, room: "tc301", who: "測試丁", phone: "0911000008", updatedAt: 41 })] });
+assert.equal(r.rows.filter((x) => x.id === 7)[0].bf, true, "breakfast saved");
+assert.equal(r.rows.filter((x) => x.id === 8)[0].bf, false, "missing bf field is fine");
+
 console.log("server: all passed");

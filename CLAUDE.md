@@ -62,7 +62,7 @@ Google 試算表「循跡訂房資料」（tracover2025 帳號）：訂單／已
 ## 5. 前端結構（`tracover/index.html`）
 章節索引：`grep -n "^/\* ---------- " tracover/index.html`。章節有：desktop（電腦版 CSS）、sample data、helpers、state、shell、guest analysis、calendar、day status、order detail、retention settings、order、check-in、revenue、sync、events。
 
-- **設定區塊** `var CFG={…}` 到 `/*ENDCFG*/`：民宿名稱、localStorage 前綴 `key`、房間 `groups[].rooms`（`[號碼, 人數, 顏色, 名稱]`）、住客通知範本 `msg`（`types`、`tpl`）、預設填單方式 `flow`、新增訂單日期選法 `dates`（`'pick'`＝直接選入住與退房日期，沒設就是「今天／週末／自己選」按鈕）。**兩間民宿只差這一塊。**
+- **設定區塊** `var CFG={…}` 到 `/*ENDCFG*/`：民宿名稱、localStorage 前綴 `key`、房間 `groups[].rooms`（`[號碼, 人數, 顏色, 名稱]`）、住客通知範本 `msg`（`types`、`tpl`）、預設填單方式 `flow`、新增訂單日期選法 `dates`（`'pick'`＝直接選入住與退房日期，沒設就是「今天／週末／自己選」按鈕）、是否有早餐欄位 `bf:true`、通知範本 `msg`（`group:'cap'`＝依房間人數和單價合併成「雙人房1900元* 2間3800元」，範本裡 `{早餐}`＝含早餐／不含早餐；沒設 `group` 就是循跡的逐間列法）。**兩間民宿只差這一塊。**
 - **房間代號** `k` = 群組 id＋房號，例如 `tc202`。後端 `Code.gs` 的 `ROOMS_` 要一致。
 - **狀態**：`app`（`tab`、`y`／`m`、`sel` 選中的日期、`order` 填單中、`ci` 登記中、`checkId`…）、`bookings`、`regs`、`settings`（`keep` 保留回流客、`flow` 填單方式）。
 - **繪製**：`render()` 依 `app.tab`（`cal`、`order`、`checkin`、`detail`、`rev`、`guests`、`settings`）呼叫 `viewXxx()`，直接寫 innerHTML。
@@ -74,7 +74,7 @@ Google 試算表「循跡訂房資料」（tracover2025 帳號）：訂單／已
 
 ## 6. 資料
 ### 訂單欄位
-`id`（時間戳）、`room`、`who`、`phone`、`n` 人數、`from`／`to`、`price`（每晚）、`deposit`、`src`（電話、LINE、FB、Booking.com、Agoda、現場）、`note`、`checked` 已登記、`paid` 尾款已收、`deleted`、`updatedAt`、`bookedOn` 預訂日、`warn` ⚠ 注意事項。
+`id`（時間戳）、`room`、`who`、`phone`、`n` 人數、`from`／`to`、`price`（每晚）、`deposit`、`src`（電話、LINE、FB、Booking.com、Agoda、現場）、`note`、`checked` 已登記、`paid` 尾款已收、`deleted`、`updatedAt`、`bookedOn` 預訂日、`warn` ⚠ 注意事項、`bf` 有無訂早餐（選填，同一組客人每間房都存同一個值；試算表「訂單」第 18 欄）。
 
 ### 手機 localStorage（前綴 `CFG.key`，循跡是 `tracover_data_v1`）
 | 鍵 | 內容 |
@@ -91,7 +91,7 @@ Google 試算表「循跡訂房資料」（tracover2025 帳號）：訂單／已
 ### 試算表分頁
 | 分頁 | 欄位 | 說明 |
 |---|---|---|
-| `訂單` | `BOOK_HEAD`（17 欄） | 只放有效訂單 |
+| `訂單` | `BOOK_HEAD`（18 欄） | 只放有效訂單 |
 | `已取消` | 同上 | |
 | `歷程` | 時間、動作（新增／修改／取消／復原）、id、房間、姓名…、改了什麼 | 只增不改；`changes` 從這裡讀 |
 | `入住登記` | `CI_HEAD`（17 欄）：…、`purpose`、`purposeNote`、`age`、`city`、`ci` | 每次登記或修改都新增一列，同一訂單取 `ts` 最新的那列 |
@@ -119,13 +119,13 @@ PW_PATH=$(npm root -g)/playwright node test/app.mjs    # 畫面：手機與電�
 - 視覺改動另外用 Playwright 截 390 寬和電腦寬的圖親眼看過，必要時把圖送給 Ayao。
 
 ## 8. 海津&海町文旅
-- 跟循跡的差別只在 `CFG`：`flow:'one'`（媽媽偏好整頁填寫）、`dates:'pick'`、`name:'海津&海町文旅'`、`key:'hjhm_data_v1'`、兩個群組：
+- 跟循跡的差別只在 `CFG`：`flow:'one'`（媽媽偏好整頁填寫）、`dates:'pick'`、`bf:true`、`name:'海津&海町文旅'`、`key:'hjhm_data_v1'`、兩個群組：
   - 海津 `js`：101（4 人）、201（4）、202（6）、203（2）
   - 海町 `ht`：101（4）、102（2）、201（4）、202（4）、203（4）
-  - 住客通知範本還沒提供。
-- 程式在 `haijin/`（`APPV='v2'`、快取名稱 `app-v2-haijin`；循跡目前 v24）。**循跡改了功能後，把 `tracover/index.html` 複製過去，只重換 `/*CFG*/` 到 `/*ENDCFG*/` 之間、`<title>`、`apple-mobile-web-app-title`，`manifest`、`sw.js` 的名稱和快取名稱照舊。** 還沒上線：試算表和 Apps Script 要建在媽媽的 Google 帳號，`Code.gs` 的 `ROOMS_` 換成 `haijin/同步設定說明.md` 裡的那份，家人帳號開共用。
-- 房間代號：`js101`…、`ht101`…。住客通知範本還沒提供，所以 `CFG` 沒有 `msg`（畫面上就不會出現「複製住客通知」）。
-- `test/app.mjs` 目前只測 `tracover/`；`haijin/` 只做過手機 320／390、電腦 1440 的開啟與填單頁房間檢查。
+  - 住客通知範本已提供，直接寫在 `CFG.msg`（含匯款帳號，**推上公開 repo 前要跟 Ayao 確認**）。
+- 程式在 `haijin/`（`APPV='v3'`、快取名稱 `app-v3-haijin`；循跡目前 v25）。**循跡改了功能後，把 `tracover/index.html` 複製過去，只重換 `/*CFG*/` 到 `/*ENDCFG*/` 之間、`<title>`、`apple-mobile-web-app-title`，`manifest`、`sw.js` 的名稱和快取名稱照舊。** 還沒上線：試算表和 Apps Script 要建在媽媽的 Google 帳號，`Code.gs` 的 `ROOMS_` 換成 `haijin/同步設定說明.md` 裡的那份，家人帳號開共用。
+- 房間代號：`js101`…、`ht101`…。早餐 `bf`：填單頁「沒有訂早餐／有訂早餐」，有訂的話當天的入住與退房清單、詳情頁會顯示「🍳 有訂早餐」，住客通知寫「含早餐」，CSV 多一欄。
+- `test/app.mjs` 只測 `tracover/`；`haijin/` 另有 `test/haijin.mjs`（`PW_PATH=… node test/haijin.mjs`）：直接選日期、早餐欄位、通知文字格式、320／390／1440 不溢出。
 - 改了循跡的功能，之後要帶到海津&海町時，只需要換 `CFG`，不要分岔改兩套。
 
 ## 9. 工作慣例
