@@ -555,8 +555,9 @@ function refreshOrder(){refreshChips();refreshNights();refreshRooms();refreshGue
 function dateMode(){var o=app.order;if(o.custom)return 'custom';if(o.inD===TODAY&&o.outD===addDay(TODAY,1))return 'today';var f=wkndStart();if(o.inD===f&&o.outD===addDay(f,2))return 'wknd';return 'custom'}
 function wkndStart(){var dow=new Date(Date.parse(TODAY)).getUTCDay();return addDay(TODAY,(5-dow+7)%7)}
 function refreshChips(){
-  var el=$i('o-chips');if(!el)return;var m=dateMode();
-  el.innerHTML=[['today','今天入住 1 晚'],['wknd','這個週末 2 晚'],['custom','自己選日期']].map(function(c){var on=m===c[0];return '<button class="chip" data-act="chip" data-c="'+c[0]+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+c[1]+'</button>'}).join('');
+  var el=$i('o-chips');if(!el)return;var pick=CFG.dates==='pick',m=pick?'custom':dateMode();
+  if(pick){el.style.display='none';if(el.previousElementSibling)el.previousElementSibling.style.display='none'}
+  el.innerHTML=pick?'':[['today','今天入住 1 晚'],['wknd','這個週末 2 晚'],['custom','自己選日期']].map(function(c){var on=m===c[0];return '<button class="chip" data-act="chip" data-c="'+c[0]+'" aria-pressed="'+on+'" style="border:1.5px solid '+(on?'#2B2A27':'#CFC7B5')+';background:'+(on?'#2B2A27':'#FBF9F4')+';color:'+(on?'#F4F1EA':'#2B2A27')+'">'+c[1]+'</button>'}).join('');
   var o=app.order;
   $i('o-dates').innerHTML=(m==='custom'?'<div class="grid2"><div><label class="lbl" for="o-in">入住日期</label><input id="o-in" type="date" class="inp sm" value="'+o.inD+'" data-in="inD"></div><div><label class="lbl" for="o-out">退房日期</label><input id="o-out" type="date" class="inp sm" value="'+o.outD+'" data-in="outD"></div></div>':'')+'<div id="o-nights" class="muted" style="margin-top:8px"></div>';
 }
@@ -823,7 +824,7 @@ function setPath(path,val){
   if(p[0]==='ci'){c[p[1]]=val}
   else if(p[0]==='comp'){c.comps[+p[1]][p[2]]=val}
 }
-var APPV='v23';
+var APPV='v24';
 var act={
   upd:function(){toast('更新中…');Promise.all([navigator.serviceWorker?navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}):0,window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0]).catch(function(){}).then(function(){location.reload()})},
   tab:function(d){if(d.t!=='order'&&app.order&&app.order.editIds)app.order=freshOrder(app.sel);app.tab=d.t;render();window.scrollTo(0,0)},
